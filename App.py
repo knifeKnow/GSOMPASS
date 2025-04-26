@@ -734,7 +734,7 @@ async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAU
         
         await query.edit_message_text(
             "🔔 Настройки напоминаний:\n\n"
-            "Напоминания приходят каждый день в 09:05 по МСК за:\n"
+            "Напоминания приходят каждый день в 08:59 по МСК за:\n"
             "10, 7, 3, 1 день и в день задания." if user_lang == "ru" else 
             "🔔 Reminder settings:\n\n"
             "Reminders are sent daily at 09:05 MSK for:\n"
