@@ -1050,8 +1050,12 @@ async def set_user_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu_keyboard(current_lang))
 
 def main():
-    import os
+    # Загрузка токена бота
     token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        logger.error("Токен бота не найден! Проверьте переменную TELEGRAM_BOT_TOKEN в Render.")
+        raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
+
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
