@@ -1,3 +1,5 @@
+import os
+import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -14,7 +16,6 @@ from telegram.ext import (
 from datetime import datetime, timedelta
 import pytz
 import logging
-import json
 
 # Настройка логирования
 logging.basicConfig(
@@ -25,13 +26,20 @@ logger = logging.getLogger(__name__)
 
 # Настройки Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name('/Users/zaharmeerovic/Documents/gsom-planner/credentials.json', scope)
+
+# Безопасная загрузка credentials
+creds_json = os.getenv("GOOGLE_CREDENTIALS")
+if not creds_json:
+    raise ValueError("GOOGLE_CREDENTIALS environment variable not set")
+
+creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(creds_json), scope)
 client = gspread.authorize(creds)
 sheets = {
     "B-11": client.open("GSOM-PLANNER").worksheet("B-11"),
     "B-12": client.open("GSOM-PLANNER").worksheet("B-12"),
     "Users": client.open("GSOM-PLANNER").worksheet("Users")
 }
+
 
 ALLOWED_USERS = {
     1042880639: "B-11",  # Mariia   1062616885   1042880639
@@ -1042,7 +1050,8 @@ async def set_user_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu_keyboard(current_lang))
 
 def main():
-    token = '7496558712:AAGPWNmHKRmnuI-5OqnDxgnKbTsDaeD1VbE'
+    import os
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
