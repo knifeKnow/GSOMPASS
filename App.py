@@ -163,7 +163,7 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• ➕ Добавить задание (для кураторов)\n"
         "• 🗑️ Удалить задание (для кураторов)\n"
         "• 🗓️ Данные берутся из Google Таблицы\n"
-        "• 🔔 Напоминания о заданиях (в 09:05 по МСК)\n"
+        "• 🔔 Напоминания о заданиях (в 09:00 по МСК)\n"
         "• 👥 Выбор/изменение группы\n"
         "• 🔒 Доступ к изменению только у доверенных пользователей" if user_lang == "ru" else 
         "📌 Bot features:\n\n"
@@ -171,7 +171,7 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• ➕ Add task (for curators)\n"
         "• 🗑️ Delete task (for curators)\n"
         "• 🗓️ Data is taken from Google Sheets\n"
-        "• 🔔 Task reminders (at 09:05 MSK)\n"
+        "• 🔔 Task reminders (at 09:00 MSK)\n"
         "• 👥 Select/change group\n"
         "• 🔒 Only trusted users can make changes",
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -734,11 +734,11 @@ async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAU
         
         await query.edit_message_text(
             "🔔 Настройки напоминаний:\n\n"
-            "Напоминания приходят каждый день в 08:59 по МСК за:\n"
-            "10, 7, 3, 1 день и в день задания." if user_lang == "ru" else 
+            "Напоминания приходят каждый день в 09:00 по МСК на :\n"
+            "10 дней вперед и в день задания" if user_lang == "ru" else 
             "🔔 Reminder settings:\n\n"
-            "Reminders are sent daily at 09:05 MSK for:\n"
-            "10, 7, 3, 1 days before and on the task day.",
+            "Reminders are sent daily at 09:00 MSK for:\n"
+            "10 days before and on the task day.",
             reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(f"Ошибка в callback_reminder_settings: {e}")
