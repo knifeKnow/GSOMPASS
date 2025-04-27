@@ -780,11 +780,8 @@ async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAU
         
         keyboard = [
             [InlineKeyboardButton(
-                "🔔 Напоминания: ВКЛ" if reminders_enabled else "🔔 Напоминания: ВЫКЛ",
+                "🔔 Reminders: On" if reminders_enabled else "🔔 Reminders: Off",
                 callback_data="toggle_reminders")],
-            [InlineKeyboardButton(
-                "🔍 Тест напоминания" if user_lang == "ru" else "🔍 Test reminder",
-                callback_data="test_reminder")],
             [InlineKeyboardButton(
                 "↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu",
                 callback_data="back_to_menu")]
