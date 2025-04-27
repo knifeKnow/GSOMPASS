@@ -40,7 +40,6 @@ sheets = {
     "Users": client.open("GSOM-PLANNER").worksheet("Users")
 }
 
-
 ALLOWED_USERS = {
     1042880639: "B-11",  # Mariia   1062616885   1042880639
     797969195: "B-12"    # Poka chto Ya    1062616885   797969195
@@ -49,6 +48,7 @@ ALLOWED_USERS = {
 # Стейты
 EDITING_TASK = 1
 WAITING_FOR_INPUT = 2
+WAITING_FOR_FEEDBACK = 3
 
 # Языки
 LANGUAGES = {
@@ -60,9 +60,9 @@ LANGUAGES = {
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 # Настройки напоминаний
-REMINDER_TIME = "18:33"  # Фиксированное время отправки
-REMINDER_DAYS_BEFORE = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]  # За сколько дней напоминать
-REMINDER_CHECK_INTERVAL = 1  # Проверять каждые 1 минутy (для тестирования)
+REMINDER_TIME = "22:24"  # МЕНЯЙТЕ ЭТО ЗНАЧЕНИЕ НА НУЖНОЕ ВРЕМЯ (формат "ЧЧ:ММ")
+REMINDER_DAYS_BEFORE = list(range(10, -1, -1))  # Напоминать за 10,9,8,...,0 дней
+REMINDER_CHECK_INTERVAL = 60  # Проверять каждые 60 секунд
 
 def convert_to_datetime(time_str, date_str):
     current_year = datetime.now().year
@@ -104,7 +104,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not user_exists:
         try:
-            sheets["Users"].append_row([user_id, "", True, "ru"])
+            sheets["Users"].append_row([user_id, "", True, "ru", ""])  # Добавляем столбец для фидбэка
         except Exception as e:
             logger.error(f"Ошибка при добавлении пользователя: {e}")
     
@@ -149,11 +149,13 @@ async def callback_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TY
 async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_lang = get_user_language(query.from_user.id)
+    user_id = query.from_user.id
+    user_lang = get_user_language(user_id)
     
     keyboard = [
         [InlineKeyboardButton("🔔 Настройки напоминаний" if user_lang == "ru" else "🔔 Reminder settings", callback_data="reminder_settings")],
         [InlineKeyboardButton("🌐 Изменить язык" if user_lang == "ru" else "🌐 Change language", callback_data="language_settings")],
+        [InlineKeyboardButton("📝 Оставить фидбэк" if user_lang == "ru" else "📝 Leave feedback", callback_data="leave_feedback")],
         [InlineKeyboardButton("↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", callback_data="back_to_menu")]
     ]
     
@@ -163,19 +165,73 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• ➕ Добавить задание (для кураторов)\n"
         "• 🗑️ Удалить задание (для кураторов)\n"
         "• 🗓️ Данные берутся из Google Таблицы\n"
-        "• 🔔 Напоминания о заданиях (в 09:00 по МСК)\n"
+        "• 🔔 Напоминания о заданиях\n"
         "• 👥 Выбор/изменение группы\n"
+        "• 📝 Отправить отзыв разработчику\n"
         "• 🔒 Доступ к изменению только у доверенных пользователей" if user_lang == "ru" else 
         "📌 Bot features:\n\n"
         "• 📋 View tasks for your group\n"
         "• ➕ Add task (for curators)\n"
         "• 🗑️ Delete task (for curators)\n"
         "• 🗓️ Data is taken from Google Sheets\n"
-        "• 🔔 Task reminders (at 09:00 MSK)\n"
+        "• 🔔 Task reminders\n"
         "• 👥 Select/change group\n"
+        "• 📝 Send feedback to developer\n"
         "• 🔒 Only trusted users can make changes",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def callback_leave_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_lang = get_user_language(query.from_user.id)
+    
+    await query.edit_message_text(
+        "📝 Пожалуйста, напишите ваш отзыв или предложение по улучшению бота:" if user_lang == "ru" else 
+        "📝 Please write your feedback or suggestion for improving the bot:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Отменить" if user_lang == "ru" else "↩️ Cancel", callback_data="cancel_feedback")]])
     )
+    return WAITING_FOR_FEEDBACK
+
+async def handle_feedback_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    feedback_text = update.message.text
+    user_lang = get_user_language(user_id)
+    
+    try:
+        users = sheets["Users"].get_all_values()
+        user_row = next((i for i, row in enumerate(users) if len(row) > 0 and str(user_id) == row[0]), None)
+        
+        if user_row is not None:
+            # Обновляем фидбэк в таблице (столбец E)
+            sheets["Users"].update_cell(user_row + 1, 5, feedback_text)
+            
+            await update.message.reply_text(
+                "✅ Спасибо за ваш отзыв! Мы учтем ваши пожелания." if user_lang == "ru" else 
+                "✅ Thank you for your feedback! We'll take it into account.",
+                reply_markup=main_menu_keyboard(user_lang))
+        else:
+            await update.message.reply_text(
+                "⛔ Не удалось сохранить отзыв. Попробуйте позже." if user_lang == "ru" else 
+                "⛔ Failed to save feedback. Please try again later.",
+                reply_markup=main_menu_keyboard(user_lang))
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении фидбэка: {e}")
+        await update.message.reply_text(
+            "⛔ Произошла ошибка при сохранении отзыва." if user_lang == "ru" else 
+            "⛔ An error occurred while saving feedback.",
+            reply_markup=main_menu_keyboard(user_lang))
+    
+    return ConversationHandler.END
+
+async def cancel_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_lang = get_user_language(query.from_user.id)
+    
+    await query.edit_message_text(
+        "🚫 Отправка отзыва отменена." if user_lang == "ru" else "🚫 Feedback submission canceled.",
+        reply_markup=main_menu_keyboard(user_lang))
+    return ConversationHandler.END
 
 async def show_tasks_for_group(query, group, show_delete_buttons=False):
     sheet = sheets[group]
@@ -256,7 +312,7 @@ async def callback_get_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_row:
                 sheets["Users"].update_cell(users.index(user_row) + 1, 2, group)
             else:
-                sheets["Users"].append_row([user_id, group, False, "ru"])
+                sheets["Users"].append_row([user_id, group, False, "ru", ""])
         except Exception as e:
             logger.error(f"Ошибка при обновлении группы пользователя: {e}")
 
@@ -299,7 +355,7 @@ async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_row = next((i for i, row in enumerate(users) if len(row) > 0 and str(user_id) == row[0]), None)
         
         if user_row is None:
-            sheets["Users"].append_row([user_id, group, False, "ru"])
+            sheets["Users"].append_row([user_id, group, False, "ru", ""])
         else:
             sheets["Users"].update_cell(user_row + 1, 2, group)
         
@@ -713,7 +769,6 @@ async def handle_task_deletion(update: Update, context: ContextTypes.DEFAULT_TYP
     
     return ConversationHandler.END
 
-# ========== IMPROVED REMINDER SYSTEM ==========
 async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -728,17 +783,20 @@ async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAU
                 "🔔 Напоминания: ВКЛ" if reminders_enabled else "🔔 Напоминания: ВЫКЛ",
                 callback_data="toggle_reminders")],
             [InlineKeyboardButton(
+                "🔍 Тест напоминания" if user_lang == "ru" else "🔍 Test reminder",
+                callback_data="test_reminder")],
+            [InlineKeyboardButton(
                 "↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu",
                 callback_data="back_to_menu")]
         ]
         
         await query.edit_message_text(
-            "🔔 Настройки напоминаний:\n\n"
-            "Напоминания приходят каждый день в 09:00 по МСК на :\n"
-            "10 дней вперед и в день задания" if user_lang == "ru" else 
-            "🔔 Reminder settings:\n\n"
-            "Reminders are sent daily at 09:00 MSK for:\n"
-            "10 days before and on the task day.",
+            f"🔔 Настройки напоминаний:\n\n"
+            f"Напоминания приходят каждый день в {REMINDER_TIME} по МСК за:\n"
+            f"10, 9, 8, ..., 1 день и в день задания." if user_lang == "ru" else 
+            f"🔔 Reminder settings:\n\n"
+            f"Reminders are sent daily at {REMINDER_TIME} MSK for:\n"
+            f"10, 9, 8, ..., 1 days before and on the task day.",
             reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(f"Ошибка в callback_reminder_settings: {e}")
@@ -757,19 +815,15 @@ async def toggle_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_row = next((i for i, row in enumerate(users) if len(row) > 0 and str(user_id) == row[0]), None)
         
         if user_row is None:
-            # Создаем нового пользователя с включенными напоминаниями
-            sheets["Users"].append_row([user_id, "", True, "ru"])
+            sheets["Users"].append_row([user_id, "", True, "ru", ""])
             new_state = True
         else:
-            # Переключаем состояние
             current_state = len(users[user_row]) > 2 and users[user_row][2].lower() == 'true'
             new_state = not current_state
             sheets["Users"].update_cell(user_row + 1, 3, str(new_state))
         
-        # Обновляем напоминания
         await schedule_reminders_for_user(context.application.job_queue, user_id)
         
-        # Возвращаем пользователю сообщение о новом состоянии
         await query.edit_message_text(
             f"✅ Напоминания {'включены' if new_state else 'выключены'}!" if user_lang == "ru" else f"✅ Reminders {'enabled' if new_state else 'disabled'}!",
             reply_markup=main_menu_keyboard(user_lang))
@@ -786,7 +840,6 @@ async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_lang = get_user_language(user_id)
     
     try:
-        # Создаем тестовое напоминание
         test_data = {
             'subject': "Test Subject",
             'task_type': "Test Task",
@@ -798,10 +851,10 @@ async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         
         context.job_queue.run_once(
-            send_reminder,
-            5,  # Через 5 секунд
+            send_daily_reminder,
+            5,
             chat_id=user_id,
-            data=test_data,
+            data={'tasks': [test_data]},
             name=f"test_reminder_{user_id}"
         )
         
@@ -841,76 +894,63 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
         now = datetime.now(MOSCOW_TZ)
         today = now.date()
         
-        # Группируем задания по дням до дедлайна
-        reminders_by_day = {}
+        tasks_for_reminder = []
         
         for row in data:
             if len(row) >= 7 and row[6] == group:
                 try:
                     deadline = convert_to_datetime(row[5], row[4])
                     if not deadline or deadline.date() < today:
-                        continue  # Пропускаем просроченные задания
+                        continue
                     
-                    # Создаем напоминания для каждого дня из REMINDER_DAYS_BEFORE
-                    for days_before in REMINDER_DAYS_BEFORE:
-                        reminder_date = (deadline.date() - timedelta(days=days_before))
-                        
-                        # Проверяем, что дата напоминания еще не прошла
-                        if reminder_date >= today:
-                            # Устанавливаем время напоминания (09:05 по МСК)
-                            reminder_time = datetime.combine(
-                                reminder_date,
-                                datetime.strptime(REMINDER_TIME, "%H:%M").time()
-                            )
-                            reminder_time = MOSCOW_TZ.localize(reminder_time)
-                            
-                            # Добавляем задание в соответствующую дату
-                            if reminder_date not in reminders_by_day:
-                                reminders_by_day[reminder_date] = []
-                            
-                            reminders_by_day[reminder_date].append({
-                                'subject': row[0],
-                                'task_type': row[1],
-                                'date': row[4],
-                                'time': row[5],
-                                'days_left': days_before,
-                                'max_points': row[3],
-                                'format': row[2]
-                            })
+                    days_left = (deadline.date() - today).days
+                    if 0 <= days_left <= 10:  # Только задания на ближайшие 10 дней
+                        tasks_for_reminder.append({
+                            'subject': row[0],
+                            'task_type': row[1],
+                            'date': row[4],
+                            'time': row[5],
+                            'days_left': days_left,
+                            'max_points': row[3],
+                            'format': row[2]
+                        })
                 except Exception as e:
-                    logger.error(f"Ошибка при создании напоминания: {e}")
+                    logger.error(f"Ошибка при обработке задания: {e}")
                     continue
-        
-        # Создаем задания для отправки группированных напоминаний
-        for reminder_date, tasks in reminders_by_day.items():
-            # Сортируем задания по дате дедлайна (ближайшие сначала)
-            tasks.sort(key=lambda x: convert_to_datetime(x['time'], x['date']))
+
+        if tasks_for_reminder:
+            # Сортируем задания по дням (от ближайших к дальним)
+            tasks_for_reminder.sort(key=lambda x: x['days_left'])
             
-            # Устанавливаем время напоминания (09:05 по МСК)
-            reminder_time = datetime.combine(
-                reminder_date,
-                datetime.strptime(REMINDER_TIME, "%H:%M").time()
-            )
-            reminder_time = MOSCOW_TZ.localize(reminder_time)
+            # Отправляем напоминание сразу
+            await send_daily_reminder(context=None, user_id=user_id, tasks=tasks_for_reminder)
             
-            # Уникальное имя для job
-            job_name = f"reminder_{user_id}_{reminder_date.strftime('%Y%m%d')}"
+            # Планируем ежедневную отправку
+            reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
+            next_reminder = datetime.combine(datetime.now().date(), reminder_time)
+            if datetime.now().time() > reminder_time:
+                next_reminder += timedelta(days=1)
             
-            job_queue.run_once(
-                send_grouped_reminders,
-                reminder_time,
+            next_reminder = MOSCOW_TZ.localize(next_reminder)
+            
+            job_queue.run_repeating(
+                send_daily_reminder_callback,
+                interval=timedelta(days=1),
+                first=next_reminder,
                 chat_id=user_id,
-                data={'tasks': tasks},
-                name=job_name
+                data={'tasks': tasks_for_reminder},
+                name=f"daily_reminder_{user_id}"
             )
+            
     except Exception as e:
         logger.error(f"Ошибка в schedule_reminders_for_user: {e}")
 
-async def send_grouped_reminders(context: ContextTypes.DEFAULT_TYPE):
-    """Отправить группированные напоминания пользователю"""
-    job = context.job
-    tasks = job.data['tasks']
-    user_id = job.chat_id
+async def send_daily_reminder_callback(context: ContextTypes.DEFAULT_TYPE):
+    """Колбэк для ежедневного напоминания"""
+    await send_daily_reminder(context, context.job.chat_id, context.job.data['tasks'])
+
+async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, tasks: list):
+    """Отправить ежедневное напоминание со всеми заданиями"""
     user_lang = get_user_language(user_id)
     
     if not tasks:
@@ -923,51 +963,47 @@ async def send_grouped_reminders(context: ContextTypes.DEFAULT_TYPE):
             tasks_by_days[task['days_left']] = []
         tasks_by_days[task['days_left']].append(task)
     
-    # Сортируем дни по возрастанию (ближайшие сначала)
+    # Сортируем дни по возрастанию
     sorted_days = sorted(tasks_by_days.keys())
     
-    # Создаем основное сообщение
-    message = "🔔 *UPCOMING DEADLINES*\n\n" if user_lang == "en" else "🔔 *ПРЕДСТОЯЩИЕ ДЕДЛАЙНЫ*\n\n"
+    # Создаем сообщение
+    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ О ЗАДАНИЯХ*\n\n" if user_lang == "ru" else "🔔 *DAILY TASKS REMINDER*\n\n"
     
     for days_left in sorted_days:
-        # Добавляем заголовок для группы задач
         if days_left == 0:
-            message += "*TODAY*\n" if user_lang == "en" else "*СЕГОДНЯ*\n"
+            day_header = "*СЕГОДНЯ*" if user_lang == "ru" else "*TODAY*"
         elif days_left == 1:
-            message += "*TOMORROW*\n" if user_lang == "en" else "*ЗАВТРА*\n"
+            day_header = "*ЗАВТРА*" if user_lang == "ru" else "*TOMORROW*"
         else:
-            days_text = {
-                3: "3 days" if user_lang == "en" else "3 дня",
-                7: "7 days" if user_lang == "en" else "7 дней",
-                10: "10 days" if user_lang == "en" else "10 дней"
-            }.get(days_left, f"{days_left} days" if user_lang == "en" else f"{days_left} дней")
-            message += f"*IN {days_text.upper()}*\n" if user_lang == "en" else f"*ЧЕРЕЗ {days_text.upper()}*\n"
+            day_header = f"*ЧЕРЕЗ {days_left} ДНЕЙ*" if user_lang == "ru" else f"*IN {days_left} DAYS*"
         
-        # Добавляем задачи для этой группы
+        message += f"{day_header}\n"
+        
         for task in tasks_by_days[days_left]:
-            time_display = "By schedule" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
-            
+            time_display = "По расписанию" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
             message += (
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n" if user_lang == "en" else
+                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n" if user_lang == "ru" else
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
                 f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n"
             )
     
-    # Добавляем общий совет в зависимости от наличия срочных задач
-    if 0 in tasks_by_days:
-        message += "❗ Urgent: Some tasks are due TODAY!" if user_lang == "en" else "❗ Срочно: Некоторые задания должны быть выполнены СЕГОДНЯ!"
-    elif 1 in tasks_by_days:
-        message += "❗ Reminder: Tasks due tomorrow!" if user_lang == "en" else "❗ Напоминание: Задания на завтра!"
-    else:
-        message += "❗ Plan ahead for upcoming deadlines." if user_lang == "en" else "❗ Запланируйте выполнение предстоящих заданий."
-    
     try:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=message,
-            parse_mode='Markdown'
-        )
+        if context:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+        else:
+            from telegram import Bot
+            bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
+            await bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+        logger.info(f"Sent daily reminder to user {user_id}")
     except Exception as e:
         logger.error(f"Ошибка при отправке напоминания пользователю {user_id}: {e}")
 
@@ -975,7 +1011,7 @@ async def refresh_reminders_for_group(job_queue: JobQueue, group: str):
     """Обновить напоминания для всех пользователей группы"""
     try:
         users = sheets["Users"].get_all_values()
-        for row in users[1:]:  # Пропускаем заголовок
+        for row in users[1:]:
             if len(row) > 1 and row[1] == group and len(row) > 2 and row[2].lower() == 'true':
                 user_id = int(row[0])
                 await schedule_reminders_for_user(job_queue, user_id)
@@ -985,18 +1021,11 @@ async def refresh_reminders_for_group(job_queue: JobQueue, group: str):
 async def check_reminders_now(context: ContextTypes.DEFAULT_TYPE):
     """Проверить и отправить напоминания прямо сейчас"""
     try:
-        now = datetime.now(MOSCOW_TZ)
-        current_time = now.time()
-        
-        # Проверяем только с 00:00 до 08:55
-        if current_time >= datetime.strptime("00:00", "%H:%M").time() and \
-           current_time <= datetime.strptime("23:55", "%H:%M").time():
-            
-            users = sheets["Users"].get_all_values()
-            for row in users[1:]:  # Пропускаем заголовок
-                if len(row) > 2 and row[2].lower() == 'true':  # Если напоминания включены
-                    user_id = int(row[0])
-                    await schedule_reminders_for_user(context.job_queue, user_id)
+        users = sheets["Users"].get_all_values()
+        for row in users[1:]:
+            if len(row) > 2 and row[2].lower() == 'true':
+                user_id = int(row[0])
+                await schedule_reminders_for_user(context.job_queue, user_id)
     except Exception as e:
         logger.error(f"Ошибка в check_reminders_now: {e}")
 
@@ -1027,7 +1056,7 @@ async def set_user_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_row = next((i for i, row in enumerate(users) if len(row) > 0 and str(user_id) == row[0]), None)
         
         if user_row is None:
-            sheets["Users"].append_row([user_id, "", False, lang])
+            sheets["Users"].append_row([user_id, "", False, lang, ""])
         else:
             if len(users[user_row]) < 4:
                 sheets["Users"].update_cell(user_row + 1, 4, lang)
@@ -1047,12 +1076,7 @@ async def set_user_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu_keyboard(current_lang))
 
 def main():
-    # Загрузка токена бота
     token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
-        logger.error("Токен бота не найден! Проверьте переменную TELEGRAM_BOT_TOKEN в Render.")
-        raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
-
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -1086,26 +1110,36 @@ def main():
         fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
     )
 
+    # Обработчик для фидбэка
+    feedback_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(callback_leave_feedback, pattern="leave_feedback")],
+        states={
+            WAITING_FOR_FEEDBACK: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_feedback_input),
+                                  CallbackQueryHandler(cancel_feedback, pattern="cancel_feedback")]
+        },
+        fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
+    )
+
     application.add_handler(add_task_handler)
     application.add_handler(delete_task_handler)
+    application.add_handler(feedback_handler)
     
     # Настраиваем периодическую проверку напоминаний
     job_queue = application.job_queue
     if job_queue:
-        # Проверка каждые 1 минутy с 00:00 до 08:55
+        # Проверка каждую минуту (для надежности)
         job_queue.run_repeating(
             check_reminders_now,
-            interval=100,  # 1 минута в секундах
-            first=0,
-            name="frequent_reminders_check"
+            interval=REMINDER_CHECK_INTERVAL,
+            first=10,
+            name="reminders_check"
         )
         
-        # Основная проверка в 00:05 (на всякий случай)
-        job_queue.run_daily(
-            check_reminders_now,
-            time=datetime.strptime("00:05", "%H:%M").time(),
-            days=(0, 1, 2, 3, 4, 5, 6),
-            name="daily_reminders_check"
+        # При запуске бота сразу проверим напоминания
+        job_queue.run_once(
+            lambda ctx: check_reminders_now(ctx),
+            when=0,
+            name="initial_reminders_check"
         )
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
