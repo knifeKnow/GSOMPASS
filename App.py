@@ -60,7 +60,7 @@ LANGUAGES = {
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 # Настройки напоминаний
-REMINDER_TIME = "23:18"  # МЕНЯЙТЕ ЭТО ЗНАЧЕНИЕ НА НУЖНОЕ ВРЕМЯ (формат "ЧЧ:ММ")
+REMINDER_TIME = "23:21"  # МЕНЯЙТЕ ЭТО ЗНАЧЕНИЕ НА НУЖНОЕ ВРЕМЯ (формат "ЧЧ:ММ")
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))  # Напоминать за 10,9,8,...,0 дней
 REMINDER_CHECK_INTERVAL = 60  # Проверять каждые 60 секунд
 
@@ -1149,11 +1149,11 @@ def main():
       #  )
         
         # При запуске бота сразу проверим напоминания
-     #   job_queue.run_once(
-      #      lambda ctx: check_reminders_now(ctx),
-       #     when=0,
-        #    name="initial_reminders_check"
-        #)
+        job_queue.run_once(
+            lambda ctx: check_reminders_now(ctx),
+            when=0,
+            name="initial_reminders_check"
+        )
     
         application.run_polling(allowed_updates=Update.ALL_TYPES)
 
