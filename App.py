@@ -1141,12 +1141,12 @@ def main():
     job_queue = application.job_queue
     if job_queue:
         # Проверка каждую минуту (для надежности)
-        job_queue.run_repeating(
-            check_reminders_now,
-            interval=REMINDER_CHECK_INTERVAL,
-            first=10,
-            name="reminders_check"
-        )
+      #  job_queue.run_repeating(
+       #     check_reminders_now,
+      #      interval=REMINDER_CHECK_INTERVAL,
+      #      first=10,
+      #      name="reminders_check"
+      #  )
         
         # При запуске бота сразу проверим напоминания
         job_queue.run_once(
