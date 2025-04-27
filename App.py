@@ -60,7 +60,7 @@ LANGUAGES = {
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 # Настройки напоминаний
-REMINDER_TIME = "18:00"  # Фиксированное время отправки
+REMINDER_TIME = "18:31"  # Фиксированное время отправки
 REMINDER_DAYS_BEFORE = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]  # За сколько дней напоминать
 REMINDER_CHECK_INTERVAL = 5  # Проверять каждые 5 минут (для тестирования)
 
