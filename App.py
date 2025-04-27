@@ -60,7 +60,7 @@ LANGUAGES = {
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 # Настройки напоминаний
-REMINDER_TIME = "22:24"  # МЕНЯЙТЕ ЭТО ЗНАЧЕНИЕ НА НУЖНОЕ ВРЕМЯ (формат "ЧЧ:ММ")
+REMINDER_TIME = "22:33"  # МЕНЯЙТЕ ЭТО ЗНАЧЕНИЕ НА НУЖНОЕ ВРЕМЯ (формат "ЧЧ:ММ")
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))  # Напоминать за 10,9,8,...,0 дней
 REMINDER_CHECK_INTERVAL = 60  # Проверять каждые 60 секунд
 
@@ -870,41 +870,51 @@ async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
     """Запланировать напоминания для пользователя"""
     try:
-        # Удаляем все старые напоминания для этого пользователя
+        logger.info(f"=== Начало schedule_reminders_for_user для {user_id} ===")
+        
+        # Удаление старых напоминаний
+        removed = 0
         for job in job_queue.jobs():
             if job.name and str(user_id) in job.name and not job.name.startswith("test_"):
                 job.schedule_removal()
+                removed += 1
+        logger.info(f"Удалено старых напоминаний: {removed}")
 
-        # Проверяем, включены ли напоминания у пользователя
+        # Проверка включения напоминаний
         if not get_user_reminders_enabled(user_id):
+            logger.info("Напоминания отключены для пользователя")
             return
 
-        # Получаем группу пользователя
+        # Получение группы пользователя
         users = sheets["Users"].get_all_values()
         user_row = next((row for row in users if len(row) > 0 and str(user_id) == row[0]), None)
         group = user_row[1] if user_row and len(user_row) > 1 and user_row[1] in sheets else None
+        
         if not group:
+            logger.warning(f"Группа не найдена для пользователя {user_id}")
             return
 
-        # Получаем все задания для группы
+        logger.info(f"Группа пользователя: {group}")
+
+        # Получение заданий
         sheet = sheets[group]
         all_values = sheet.get_all_values()
         data = all_values[1:] if len(all_values) > 1 else []
-        
+        logger.info(f"Найдено заданий: {len(data)}")
+
         now = datetime.now(MOSCOW_TZ)
         today = now.date()
-        
         tasks_for_reminder = []
         
         for row in data:
             if len(row) >= 7 and row[6] == group:
                 try:
                     deadline = convert_to_datetime(row[5], row[4])
-                    if not deadline or deadline.date() < today:
+                    if not deadline:
                         continue
-                    
+                        
                     days_left = (deadline.date() - today).days
-                    if 0 <= days_left <= 10:  # Только задания на ближайшие 10 дней
+                    if 0 <= days_left <= 10:
                         tasks_for_reminder.append({
                             'subject': row[0],
                             'task_type': row[1],
@@ -915,23 +925,26 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
                             'format': row[2]
                         })
                 except Exception as e:
-                    logger.error(f"Ошибка при обработке задания: {e}")
-                    continue
+                    logger.error(f"Ошибка обработки строки {row}: {e}")
 
+        logger.info(f"Заданий для напоминания: {len(tasks_for_reminder)}")
+        
         if tasks_for_reminder:
-            # Сортируем задания по дням (от ближайших к дальним)
             tasks_for_reminder.sort(key=lambda x: x['days_left'])
             
-            # Отправляем напоминание сразу
-            await send_daily_reminder(context=None, user_id=user_id, tasks=tasks_for_reminder)
+            # Тестовая отправка
+            logger.info("Отправка тестового напоминания...")
+            await send_daily_reminder(None, user_id, tasks_for_reminder)
             
-            # Планируем ежедневную отправку
+            # Планирование
             reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
             next_reminder = datetime.combine(datetime.now().date(), reminder_time)
+            
             if datetime.now().time() > reminder_time:
                 next_reminder += timedelta(days=1)
             
             next_reminder = MOSCOW_TZ.localize(next_reminder)
+            logger.info(f"Следующее напоминание запланировано на {next_reminder}")
             
             job_queue.run_repeating(
                 send_daily_reminder_callback,
@@ -941,9 +954,9 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
                 data={'tasks': tasks_for_reminder},
                 name=f"daily_reminder_{user_id}"
             )
-            
+
     except Exception as e:
-        logger.error(f"Ошибка в schedule_reminders_for_user: {e}")
+        logger.error(f"Критическая ошибка в schedule_reminders_for_user: {e}")
 
 async def send_daily_reminder_callback(context: ContextTypes.DEFAULT_TYPE):
     """Колбэк для ежедневного напоминания"""
