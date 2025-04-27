@@ -990,7 +990,7 @@ async def check_reminders_now(context: ContextTypes.DEFAULT_TYPE):
         
         # Проверяем только с 00:00 до 08:55
         if current_time >= datetime.strptime("00:00", "%H:%M").time() and \
-           current_time <= datetime.strptime("08:55", "%H:%M").time():
+           current_time <= datetime.strptime("23:55", "%H:%M").time():
             
             users = sheets["Users"].get_all_values()
             for row in users[1:]:  # Пропускаем заголовок
@@ -1092,10 +1092,10 @@ def main():
     # Настраиваем периодическую проверку напоминаний
     job_queue = application.job_queue
     if job_queue:
-        # Проверка каждые 5 минут с 00:00 до 08:55
+        # Проверка каждые 1 минутy с 00:00 до 08:55
         job_queue.run_repeating(
             check_reminders_now,
-            interval=300,  # 5 минут в секундах
+            interval=100,  # 1 минута в секундах
             first=0,
             name="frequent_reminders_check"
         )
