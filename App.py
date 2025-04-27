@@ -933,8 +933,8 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
             tasks_for_reminder.sort(key=lambda x: x['days_left'])
             
             # Тестовая отправка
-            logger.info("Отправка тестового напоминания...")
-            await send_daily_reminder(None, user_id, tasks_for_reminder)
+#            logger.info("Отправка тестового напоминания...")
+ #           await send_daily_reminder(None, user_id, tasks_for_reminder)
             
             # Планирование
             reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
@@ -1149,11 +1149,11 @@ def main():
       #  )
         
         # При запуске бота сразу проверим напоминания
-        job_queue.run_once(
-            lambda ctx: check_reminders_now(ctx),
-            when=0,
-            name="initial_reminders_check"
-        )
+      #  job_queue.run_once(
+       #     lambda ctx: check_reminders_now(ctx),
+        #    when=0,
+         #   name="initial_reminders_check"
+     #   )
     
         application.run_polling(allowed_updates=Update.ALL_TYPES)
 
