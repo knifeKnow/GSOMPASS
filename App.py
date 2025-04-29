@@ -1081,7 +1081,7 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
     sorted_days = sorted(tasks_by_days.keys())
     
     # Создаем сообщение
-    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ О ЗАДАНИЯХ*\n\n" if user_lang == "ru" else "🔔 *DAILY TASKS REMINDER*\n\n"
+    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ*\n\n" if user_lang == "ru" else "🔔 *DAILY REMINDER*\n\n"
     
     for days_left in sorted_days:
         if days_left == 0:
