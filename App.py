@@ -284,12 +284,12 @@ async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delet
                 if show_edit_buttons:
                     keyboard.append([InlineKeyboardButton(
                         f"✏️ Редактировать: {row[0]} ({row[4]})" if user_lang == "ru" else f"✏️ Edit: {row[0]} ({row[4]})",
-                        callback_data=f"edit_{group}_{row_idx}"
+                        callback_data=f"edit_task_{group}_{row_idx}"
                     )])
                 elif show_delete_buttons:
                     keyboard.append([InlineKeyboardButton(
                         f"🗑️ Удалить: {row[0]} ({row[4]})" if user_lang == "ru" else f"🗑️ Delete: {row[0]} ({row[4]})",
-                        callback_data=f"delete_{group}_{row_idx}"
+                        callback_data=f"delete_task_{group}_{row_idx}"
                     )])
 
         if count == 0:
@@ -416,22 +416,22 @@ def generate_edit_task_keyboard(user_lang="ru"):
 
 def generate_subject_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Maths", callback_data="Maths"),
-         InlineKeyboardButton("Management", callback_data="Management")],
-        [InlineKeyboardButton("DigTools", callback_data="DigTools"),
-         InlineKeyboardButton("FinAcc", callback_data="FinAcc")],
-        [InlineKeyboardButton("Microeconomics", callback_data="Microeconomics"),
-         InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_subject")],
+        [InlineKeyboardButton("Maths", callback_data="subject_Maths"),
+         InlineKeyboardButton("Management", callback_data="subject_Management")],
+        [InlineKeyboardButton("DigTools", callback_data="subject_DigTools"),
+         InlineKeyboardButton("FinAcc", callback_data="subject_FinAcc")],
+        [InlineKeyboardButton("Microeconomics", callback_data="subject_Microeconomics"),
+         InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="subject_other")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
 def generate_task_type_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Test", callback_data="Test"),
-         InlineKeyboardButton("HW", callback_data="HW")],
-        [InlineKeyboardButton("MidTerm", callback_data="MidTerm"),
-         InlineKeyboardButton("FinalTest", callback_data="FinalTest")],
-        [InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_task_type")],
+        [InlineKeyboardButton("Test", callback_data="type_Test"),
+         InlineKeyboardButton("HW", callback_data="type_HW")],
+        [InlineKeyboardButton("MidTerm", callback_data="type_MidTerm"),
+         InlineKeyboardButton("FinalTest", callback_data="type_FinalTest")],
+        [InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="type_other")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -441,7 +441,7 @@ def generate_points_keyboard(user_lang="ru"):
          InlineKeyboardButton("10", callback_data="points_10")],
         [InlineKeyboardButton("15", callback_data="points_15"),
          InlineKeyboardButton("20", callback_data="points_20")],
-        [InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_max_points")],
+        [InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="points_other")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -469,39 +469,39 @@ def generate_date_buttons(user_lang="ru"):
         day_name = date.strftime("%a")
         
         btn_text = f"{date_str} ({day_name})"
-        row_buttons.append(InlineKeyboardButton(btn_text, callback_data=date_str))
+        row_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"date_{date_str}"))
         
         if len(row_buttons) == 4 or i == 27:
             buttons.append(row_buttons)
             row_buttons = []
     
-    buttons.append([InlineKeyboardButton("✏️ Ввести свою дату" if user_lang == "ru" else "✏️ Enter custom date", callback_data="custom_date")])
+    buttons.append([InlineKeyboardButton("✏️ Ввести свою дату" if user_lang == "ru" else "✏️ Enter custom date", callback_data="date_custom")])
     buttons.append([InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")])
     
     return InlineKeyboardMarkup(buttons)
 
 def generate_format_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Online", callback_data="Online"),
-         InlineKeyboardButton("Offline - MD", callback_data="Offline - MD")],
+        [InlineKeyboardButton("Online", callback_data="format_Online"),
+         InlineKeyboardButton("Offline - MD", callback_data="format_Offline - MD")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
 def generate_book_type_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📖 Open-book", callback_data="open_book"),
-         InlineKeyboardButton("📕 Closed-book", callback_data="closed_book")],
+        [InlineKeyboardButton("📖 Open-book", callback_data="booktype_open"),
+         InlineKeyboardButton("📕 Closed-book", callback_data="booktype_closed")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
 def generate_details_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Можно простой калькулятор" if user_lang == "ru" else "Simple calculator allowed", callback_data="calc_allowed")],
-        [InlineKeyboardButton("Можно телефон" if user_lang == "ru" else "Phone allowed", callback_data="phone_allowed")],
-        [InlineKeyboardButton("Можно распечатанные слайды" if user_lang == "ru" else "Printed slides allowed", callback_data="slides_allowed")],
-        [InlineKeyboardButton("Можно конспекты" if user_lang == "ru" else "Notes allowed", callback_data="notes_allowed")],
-        [InlineKeyboardButton("Формулы будут в справке" if user_lang == "ru" else "Formulas in reference", callback_data="formulas_ref")],
-        [InlineKeyboardButton("✏️ Ввести свои детали" if user_lang == "ru" else "✏️ Enter custom details", callback_data="custom_details")],
+        [InlineKeyboardButton("Можно простой калькулятор" if user_lang == "ru" else "Simple calculator allowed", callback_data="details_calc")],
+        [InlineKeyboardButton("Можно телефон" if user_lang == "ru" else "Phone allowed", callback_data="details_phone")],
+        [InlineKeyboardButton("Можно распечатанные слайды" if user_lang == "ru" else "Printed slides allowed", callback_data="details_slides")],
+        [InlineKeyboardButton("Можно конспекты" if user_lang == "ru" else "Notes allowed", callback_data="details_notes")],
+        [InlineKeyboardButton("Формулы будут в справке" if user_lang == "ru" else "Formulas in reference", callback_data="details_formulas")],
+        [InlineKeyboardButton("✏️ Ввести свои детали" if user_lang == "ru" else "✏️ Enter custom details", callback_data="details_custom")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -582,44 +582,61 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
     user_lang = get_user_language(query.from_user.id)
     
-    if query.data.startswith("edit_"):
-        task_id = query.data.split("_")[1:]
-        if len(task_id) == 2:  # Это редактирование существующего задания
-            group = task_id[0]
-            row_idx = int(task_id[1])
+    # Обработка выбора задания для редактирования
+    if query.data.startswith("edit_task_"):
+        parts = query.data.split("_")
+        if len(parts) != 4:
+            logger.error(f"Invalid edit_task callback_data format: {query.data}")
+            await query.edit_message_text(
+                "⛔ Ошибка: неверный формат запроса." if user_lang == "ru" else "⛔ Error: invalid request format.",
+                reply_markup=main_menu_keyboard(user_lang))
+            return ConversationHandler.END
+        
+        group = parts[2]
+        try:
+            row_idx = int(parts[3])
+        except ValueError:
+            logger.error(f"Invalid row index: {parts[3]}")
+            await query.edit_message_text(
+                "⛔ Ошибка: неверный номер задания." if user_lang == "ru" else "⛔ Error: invalid task number.",
+                reply_markup=main_menu_keyboard(user_lang))
+            return ConversationHandler.END
+        
+        try:
+            sheet = sheets[group]
+            row_data = sheet.row_values(row_idx)
             
-            try:
-                sheet = sheets[group]
-                row_data = sheet.row_values(row_idx)
+            if len(row_data) >= 9:
+                context.user_data["task_data"] = {
+                    "group": group,
+                    "row_idx": row_idx,
+                    "subject": row_data[0],
+                    "task_type": row_data[1],
+                    "format": row_data[2],
+                    "max_points": row_data[3],
+                    "date": row_data[4],
+                    "time": row_data[5],
+                    "book_type": row_data[7] if len(row_data) > 7 else "",
+                    "details": row_data[8] if len(row_data) > 8 else ""
+                }
                 
-                if len(row_data) >= 9:
-                    context.user_data["task_data"] = {
-                        "group": group,
-                        "row_idx": row_idx,
-                        "subject": row_data[0],
-                        "task_type": row_data[1],
-                        "format": row_data[2],
-                        "max_points": row_data[3],
-                        "date": row_data[4],
-                        "time": row_data[5],
-                        "book_type": row_data[7] if len(row_data) > 7 else "",
-                        "details": row_data[8] if len(row_data) > 8 else ""
-                    }
-                    
-                    message = await format_task_message(context)
-                    await query.edit_message_text(
-                        message,
-                        reply_markup=generate_edit_task_keyboard(user_lang),
-                        parse_mode='HTML'
-                    )
-                    return EDITING_TASK
-            except Exception as e:
-                logger.error(f"Ошибка при загрузке задания для редактирования: {e}")
+                message = await format_task_message(context)
                 await query.edit_message_text(
-                    "⛔ Ошибка при загрузке задания." if user_lang == "ru" else "⛔ Error loading task.",
-                    reply_markup=main_menu_keyboard(user_lang))
-                return ConversationHandler.END
+                    message,
+                    reply_markup=generate_edit_task_keyboard(user_lang),
+                    parse_mode='HTML'
+                )
+                return EDITING_TASK
+            else:
+                raise ValueError("Недостаточно данных в строке")
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке задания для редактирования: {e}")
+            await query.edit_message_text(
+                "⛔ Ошибка при загрузке задания." if user_lang == "ru" else "⛔ Error loading task.",
+                reply_markup=main_menu_keyboard(user_lang))
+            return ConversationHandler.END
     
+    # Обработка кнопок редактирования параметров
     if query.data == "edit_subject":
         await query.edit_message_text(
             "✍️ Выберите предмет:" if user_lang == "ru" else "✍️ Select subject:",
@@ -667,41 +684,62 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
-    elif query.data.startswith(("Maths", "Management", "DigTools", "FinAcc", "Microeconomics")):
-        context.user_data["task_data"]["subject"] = query.data
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_lang),
-            parse_mode='HTML'
-        )
-    elif query.data.startswith(("Test", "HW", "MidTerm", "FinalTest")):
-        context.user_data["task_data"]["task_type"] = query.data
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_lang),
-            parse_mode='HTML'
-        )
+    
+    # Обработка выбора конкретных значений
+    elif query.data.startswith("subject_"):
+        if query.data == "subject_other":
+            await query.edit_message_text("✍️ Введите название предмета:" if user_lang == "ru" else "✍️ Enter subject name:")
+            context.user_data["waiting_for"] = "subject"
+            return WAITING_FOR_INPUT
+        else:
+            context.user_data["task_data"]["subject"] = query.data.split("_")[1]
+            message = await format_task_message(context)
+            await query.edit_message_text(
+                message,
+                reply_markup=generate_edit_task_keyboard(user_lang),
+                parse_mode='HTML'
+            )
+    elif query.data.startswith("type_"):
+        if query.data == "type_other":
+            await query.edit_message_text("📘 Введите тип задания:" if user_lang == "ru" else "📘 Enter task type:")
+            context.user_data["waiting_for"] = "task_type"
+            return WAITING_FOR_INPUT
+        else:
+            context.user_data["task_data"]["task_type"] = query.data.split("_")[1]
+            message = await format_task_message(context)
+            await query.edit_message_text(
+                message,
+                reply_markup=generate_edit_task_keyboard(user_lang),
+                parse_mode='HTML'
+            )
     elif query.data.startswith("points_"):
-        points_value = query.data[7:]
-        context.user_data["task_data"]["max_points"] = points_value
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_lang),
-            parse_mode='HTML'
-        )
-    elif len(query.data.split('.')) == 2 and query.data.count('.') == 1:
-        context.user_data["task_data"]["date"] = query.data
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_lang),
-            parse_mode='HTML'
-        )
+        if query.data == "points_other":
+            await query.edit_message_text("💯 Введите количество баллов курса:" if user_lang == "ru" else "💯 Enter course points:")
+            context.user_data["waiting_for"] = "max_points"
+            return WAITING_FOR_INPUT
+        else:
+            context.user_data["task_data"]["max_points"] = query.data.split("_")[1]
+            message = await format_task_message(context)
+            await query.edit_message_text(
+                message,
+                reply_markup=generate_edit_task_keyboard(user_lang),
+                parse_mode='HTML'
+            )
+    elif query.data.startswith("date_"):
+        if query.data == "date_custom":
+            await query.edit_message_text("🗓️ Введите дату в формате ДД.ММ (например, 15.12):" if user_lang == "ru" else "🗓️ Enter date in DD.MM format (e.g., 15.12):")
+            context.user_data["waiting_for"] = "date"
+            return WAITING_FOR_INPUT
+        else:
+            context.user_data["task_data"]["date"] = query.data.split("_")[1]
+            message = await format_task_message(context)
+            await query.edit_message_text(
+                message,
+                reply_markup=generate_edit_task_keyboard(user_lang),
+                parse_mode='HTML'
+            )
     elif query.data.startswith("time_"):
-        time_value = query.data[5:]
+        time_value = query.data.split("_")[1]
         if time_value == "schedule":
             time_value = "23:59"
         context.user_data["task_data"]["time"] = time_value
@@ -711,68 +749,63 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
-    elif query.data in ["Online", "Offline - MD"]:
-        context.user_data["task_data"]["format"] = query.data
+    elif query.data.startswith("format_"):
+        context.user_data["task_data"]["format"] = query.data.split("_")[1]
         message = await format_task_message(context)
         await query.edit_message_text(
             message,
             reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
-    elif query.data in ["open_book", "closed_book"]:
-        context.user_data["task_data"]["book_type"] = "Open-book" if query.data == "open_book" else "Closed-book"
+    elif query.data.startswith("booktype_"):
+        book_type = "Open-book" if query.data.split("_")[1] == "open" else "Closed-book"
+        context.user_data["task_data"]["book_type"] = book_type
         message = await format_task_message(context)
         await query.edit_message_text(
             message,
             reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
-    elif query.data in ["calc_allowed", "phone_allowed", "slides_allowed", "notes_allowed", "formulas_ref"]:
-        details_mapping = {
-            "calc_allowed": "Можно простой калькулятор" if user_lang == "ru" else "Simple calculator allowed",
-            "phone_allowed": "Можно телефон" if user_lang == "ru" else "Phone allowed",
-            "slides_allowed": "Можно распечатанные слайды" if user_lang == "ru" else "Printed slides allowed",
-            "notes_allowed": "Можно конспекты" if user_lang == "ru" else "Notes allowed",
-            "formulas_ref": "Формулы будут в справке" if user_lang == "ru" else "Formulas in reference"
-        }
-        context.user_data["task_data"]["details"] = details_mapping[query.data]
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_lang),
-            parse_mode='HTML'
-        )
-    elif query.data == "custom_details":
-        await query.edit_message_text("📝 Введите свои детали:" if user_lang == "ru" else "📝 Enter custom details:")
-        context.user_data["waiting_for"] = "details"
-        return WAITING_FOR_INPUT
-    elif query.data == "other_subject":
-        await query.edit_message_text("✍️ Введите название предмета:" if user_lang == "ru" else "✍️ Enter subject name:")
-        context.user_data["waiting_for"] = "subject"
-        return WAITING_FOR_INPUT
-    elif query.data == "other_task_type":
-        await query.edit_message_text("📘 Введите тип задания:" if user_lang == "ru" else "📘 Enter task type:")
-        context.user_data["waiting_for"] = "task_type"
-        return WAITING_FOR_INPUT
-    elif query.data == "other_max_points":
-        await query.edit_message_text("💯 Введите количество баллов курса:" if user_lang == "ru" else "💯 Enter course points:")
-        context.user_data["waiting_for"] = "max_points"
-        return WAITING_FOR_INPUT
-    elif query.data == "custom_date":
-        await query.edit_message_text("🗓️ Введите дату в формате ДД.ММ (например, 15.12):" if user_lang == "ru" else "🗓️ Enter date in DD.MM format (e.g., 15.12):")
-        context.user_data["waiting_for"] = "date"
-        return WAITING_FOR_INPUT
+    elif query.data.startswith("details_"):
+        if query.data == "details_custom":
+            await query.edit_message_text("📝 Введите свои детали:" if user_lang == "ru" else "📝 Enter custom details:")
+            context.user_data["waiting_for"] = "details"
+            return WAITING_FOR_INPUT
+        else:
+            details_mapping = {
+                "calc": "Можно простой калькулятор" if user_lang == "ru" else "Simple calculator allowed",
+                "phone": "Можно телефон" if user_lang == "ru" else "Phone allowed",
+                "slides": "Можно распечатанные слайды" if user_lang == "ru" else "Printed slides allowed",
+                "notes": "Можно конспекты" if user_lang == "ru" else "Notes allowed",
+                "formulas": "Формулы будут в справке" if user_lang == "ru" else "Formulas in reference"
+            }
+            detail_type = query.data.split("_")[1]
+            context.user_data["task_data"]["details"] = details_mapping.get(detail_type, "")
+            message = await format_task_message(context)
+            await query.edit_message_text(
+                message,
+                reply_markup=generate_edit_task_keyboard(user_lang),
+                parse_mode='HTML'
+            )
     elif query.data == "save_task":
         task_data = context.user_data.get("task_data", {})
-        if (task_data["subject"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["task_type"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["max_points"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["date"] == ("не выбрана" if user_lang == "ru" else "not selected") or 
-            task_data["time"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["format"] == ("не выбран" if user_lang == "ru" else "not selected")):
-            
+        required_fields = ["subject", "task_type", "max_points", "date", "time", "format"]
+        missing_fields = [field for field in required_fields 
+                         if not task_data.get(field) or task_data[field].startswith("не выбра")]
+        
+        if missing_fields:
+            missing_text = {
+                "subject": "предмет",
+                "task_type": "тип задания",
+                "max_points": "баллы курса",
+                "date": "дата",
+                "time": "время",
+                "format": "формат"
+            }
+            missing_list = ", ".join([missing_text[field] for field in missing_fields])
             await query.answer(
-                "⚠️ Заполните все обязательные поля перед сохранением!" if user_lang == "ru" else "⚠️ Fill all required fields before saving!",
+                f"⚠️ Заполните обязательные поля: {missing_list}!" if user_lang == "ru" 
+                else f"⚠️ Fill required fields: {missing_list.replace('предмет', 'subject').replace('тип задания', 'task type').replace('баллы курса', 'points').replace('дата', 'date').replace('время', 'time').replace('формат', 'format')}!",
                 show_alert=True)
             return EDITING_TASK
         
@@ -832,7 +865,12 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif waiting_for == "task_type":
         context.user_data["task_data"]["task_type"] = user_input
     elif waiting_for == "max_points":
-        context.user_data["task_data"]["max_points"] = user_input
+        if user_input.isdigit():
+            context.user_data["task_data"]["max_points"] = user_input
+        else:
+            await update.message.reply_text(
+                "⚠️ Введите число для баллов курса." if user_lang == "ru" else "⚠️ Enter a number for course points.")
+            return WAITING_FOR_INPUT
     elif waiting_for == "date":
         try:
             day, month = user_input.split('.')
@@ -886,10 +924,14 @@ async def handle_task_deletion(update: Update, context: ContextTypes.DEFAULT_TYP
         await callback_back_to_menu(update, context)
         return ConversationHandler.END
     
-    if query.data.startswith("delete_"):
+    if query.data.startswith("delete_task_"):
         try:
-            _, group, row_idx = query.data.split("_")
-            row_idx = int(row_idx)
+            parts = query.data.split("_")
+            if len(parts) != 4:
+                raise ValueError("Invalid delete_task format")
+            
+            group = parts[2]
+            row_idx = int(parts[3])
             sheet = sheets[group]
             
             all_values = sheet.get_all_values()
