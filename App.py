@@ -41,8 +41,8 @@ sheets = {
 }
 
 ALLOWED_USERS = {
-    1042880639: "B-11",  # Mariia
-    1062616885: "B-12"    # Poka chto Ya 
+    1042880639: "B-11",  # Mariia   1062616885   1042880639
+    1062616885: "B-12"    # Poka chto Ya    1062616885   797969195
 }
 
 # Стейты
@@ -60,8 +60,9 @@ LANGUAGES = {
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 # Настройки напоминаний
-REMINDER_TIME = "09:00"  # Время отправки напоминаний (09:00 МСК)
+REMINDER_TIME = "09:00"  # МЕНЯЙТЕ ЭТО ЗНАЧЕНИЕ НА НУЖНОЕ ВРЕМЯ (формат "ЧЧ:ММ")
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))  # Напоминать за 10,9,8,...,0 дней
+REMINDER_CHECK_INTERVAL = 60  # Проверять каждые 60 секунд
 
 def convert_to_datetime(time_str, date_str):
     current_year = datetime.now().year
@@ -83,7 +84,6 @@ def main_menu_keyboard(user_lang="ru"):
         [InlineKeyboardButton("📋 Посмотреть задания" if user_lang == "ru" else "📋 View tasks", callback_data="get_data")],
         [
             InlineKeyboardButton("➕ Добавить задание" if user_lang == "ru" else "➕ Add task", callback_data="add_task"),
-            InlineKeyboardButton("✏️ Редактировать" if user_lang == "ru" else "✏️ Edit", callback_data="edit_task"),
             InlineKeyboardButton("🗑️ Удалить задание" if user_lang == "ru" else "🗑️ Delete task", callback_data="delete_task")
         ],
         [InlineKeyboardButton("👥 Выбор группы" if user_lang == "ru" else "👥 Select group", callback_data="select_group")],
@@ -104,7 +104,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not user_exists:
         try:
-            sheets["Users"].append_row([user_id, "", True, "ru", ""])
+            sheets["Users"].append_row([user_id, "", True, "ru", ""])  # Добавляем столбец для фидбэка
         except Exception as e:
             logger.error(f"Ошибка при добавлении пользователя: {e}")
     
@@ -163,7 +163,6 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 Возможности бота:\n\n"
         "• 📋 Посмотреть задания своей группы\n"
         "• ➕ Добавить задание (для кураторов)\n"
-        "• ✏️ Редактировать задание (для кураторов)\n"
         "• 🗑️ Удалить задание (для кураторов)\n"
         "• 🗓️ Данные берутся из Google Таблицы\n"
         "• 🔔 Напоминания о заданиях\n"
@@ -173,7 +172,6 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 Bot features:\n\n"
         "• 📋 View tasks for your group\n"
         "• ➕ Add task (for curators)\n"
-        "• ✏️ Edit task (for curators)\n"
         "• 🗑️ Delete task (for curators)\n"
         "• 🗓️ Data is taken from Google Sheets\n"
         "• 🔔 Task reminders\n"
@@ -204,6 +202,7 @@ async def handle_feedback_input(update: Update, context: ContextTypes.DEFAULT_TY
         user_row = next((i for i, row in enumerate(users) if len(row) > 0 and str(user_id) == row[0]), None)
         
         if user_row is not None:
+            # Обновляем фидбэк в таблице (столбец E)
             sheets["Users"].update_cell(user_row + 1, 5, feedback_text)
             
             await update.message.reply_text(
@@ -234,7 +233,7 @@ async def cancel_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu_keyboard(user_lang))
     return ConversationHandler.END
 
-async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delete_buttons=False):
+async def show_tasks_for_group(query, group, show_delete_buttons=False):
     sheet = sheets[group]
     try:
         all_values = sheet.get_all_values()
@@ -246,7 +245,7 @@ async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delet
         tasks = []
 
         for idx, row in enumerate(data, start=2):
-            if len(row) >= 9 and row[6] == group:
+            if len(row) >= 7 and row[6] == group:
                 try:
                     deadline = convert_to_datetime(row[5], row[4])
                     if deadline:
@@ -265,27 +264,13 @@ async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delet
                 response += (
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
-                    f"🗓 Дата: {row[4]} | Время: {time_display}\n"
-                    f"🏷 Формат: {row[2]}\n"
-                    f"📖 Тип: {row[7]}\n"
-                    f"💯 Баллы курса: {row[3]}\n"
-                    + (f"📝 Детали: {row[8]}\n" if row[8] else "")
-                    if user_lang == "ru" else 
+                    f"🗓 Дата: {row[4]} | Время: {time_display} | Баллы: {row[3]}\n" if user_lang == "ru" else 
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
-                    f"🗓 Date: {row[4]} | Time: {time_display}\n"
-                    f"🏷 Format: {row[2]}\n"
-                    f"📖 Type: {row[7]}\n"
-                    f"💯 Course Points: {row[3]}\n"
-                    + (f"📝 Details: {row[8]}\n" if row[8] else "")
+                    f"🗓 Date: {row[4]} | Time: {time_display} | Points: {row[3]}\n"
                 )
                 
-                if show_edit_buttons:
-                    keyboard.append([InlineKeyboardButton(
-                        f"✏️ Редактировать: {row[0]} ({row[4]})" if user_lang == "ru" else f"✏️ Edit: {row[0]} ({row[4]})",
-                        callback_data=f"edit_{group}_{row_idx}"
-                    )])
-                elif show_delete_buttons:
+                if show_delete_buttons:
                     keyboard.append([InlineKeyboardButton(
                         f"🗑️ Удалить: {row[0]} ({row[4]})" if user_lang == "ru" else f"🗑️ Delete: {row[0]} ({row[4]})",
                         callback_data=f"delete_{group}_{row_idx}"
@@ -294,7 +279,7 @@ async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delet
         if count == 0:
             response = "ℹ️ Пока нет заданий для вашей группы." if user_lang == "ru" else "ℹ️ No tasks for your group yet."
 
-        if show_edit_buttons or show_delete_buttons:
+        if show_delete_buttons:
             keyboard.append([InlineKeyboardButton("↩️ Назад" if user_lang == "ru" else "↩️ Back", callback_data="back_to_menu")])
             reply_markup = InlineKeyboardMarkup(keyboard)
         else:
@@ -396,16 +381,12 @@ def generate_edit_task_keyboard(user_lang="ru"):
             InlineKeyboardButton("📘 Тип задания" if user_lang == "ru" else "📘 Task type", callback_data="edit_task_type")
         ],
         [
-            InlineKeyboardButton("💯 Баллы курса" if user_lang == "ru" else "💯 Course Points", callback_data="edit_max_points"),
+            InlineKeyboardButton("💯 Баллы" if user_lang == "ru" else "💯 Points", callback_data="edit_max_points"),
             InlineKeyboardButton("🗓️ Дата" if user_lang == "ru" else "🗓️ Date", callback_data="edit_date")
         ],
         [
             InlineKeyboardButton("⏰ Время" if user_lang == "ru" else "⏰ Time", callback_data="edit_time"),
             InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
-        ],
-        [
-            InlineKeyboardButton("📖 Open/Closed-book" if user_lang == "ru" else "📖 Open/Closed-book", callback_data="edit_book_type"),
-            InlineKeyboardButton("📝 Детали" if user_lang == "ru" else "📝 Details", callback_data="edit_details")
         ],
         [
             InlineKeyboardButton("✅ Сохранить" if user_lang == "ru" else "✅ Save", callback_data="save_task"),
@@ -486,24 +467,6 @@ def generate_format_keyboard(user_lang="ru"):
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
-def generate_book_type_keyboard(user_lang="ru"):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📖 Open-book", callback_data="open_book"),
-         InlineKeyboardButton("📕 Closed-book", callback_data="closed_book")],
-        [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
-    ])
-
-def generate_details_keyboard(user_lang="ru"):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Можно простой калькулятор" if user_lang == "ru" else "Simple calculator allowed", callback_data="calc_allowed")],
-        [InlineKeyboardButton("Можно телефон" if user_lang == "ru" else "Phone allowed", callback_data="phone_allowed")],
-        [InlineKeyboardButton("Можно распечатанные слайды" if user_lang == "ru" else "Printed slides allowed", callback_data="slides_allowed")],
-        [InlineKeyboardButton("Можно конспекты" if user_lang == "ru" else "Notes allowed", callback_data="notes_allowed")],
-        [InlineKeyboardButton("Формулы будут в справке" if user_lang == "ru" else "Formulas in reference", callback_data="formulas_ref")],
-        [InlineKeyboardButton("✏️ Ввести свои детали" if user_lang == "ru" else "✏️ Enter custom details", callback_data="custom_details")],
-        [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
-    ])
-
 async def format_task_message(context):
     task_data = context.user_data.get("task_data", {})
     user_lang = get_user_language(context._user_id) if hasattr(context, '_user_id') else "ru"
@@ -511,7 +474,7 @@ async def format_task_message(context):
     message = "📝 Редактирование задания:\n\n" if user_lang == "ru" else "📝 Editing task:\n\n"
     message += f"🔹 <b>Предмет:</b> {task_data.get('subject', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Тип задания:</b> {task_data.get('task_type', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Баллы курса:</b> {task_data.get('max_points', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>Макс. баллы:</b> {task_data.get('max_points', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Дата:</b> {task_data.get('date', 'не выбрана' if user_lang == 'ru' else 'not selected')}\n"
     
     time_display = task_data.get('time', 'не выбрано' if user_lang == 'ru' else 'not selected')
@@ -521,11 +484,8 @@ async def format_task_message(context):
         time_display = "By schedule" if user_lang == "en" else "По расписанию"
     message += f"🔹 <b>Время:</b> {time_display}\n"
     
-    message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_lang == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Тип экзамена:</b> {task_data.get('book_type', 'не выбран' if user_lang == 'ru' else 'not selected')}\n"
-    if task_data.get('details'):
-        message += f"🔹 <b>Детали:</b> {task_data.get('details')}\n"
-    message += "\nВыберите параметр для изменения или сохраните задание:" if user_lang == "ru" else "\nSelect a parameter to change or save the task:"
+    message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_lang == 'ru' else 'not selected')}\n\n"
+    message += "Выберите параметр для изменения или сохраните задание:" if user_lang == "ru" else "Select a parameter to change or save the task:"
     return message
 
 async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -547,9 +507,7 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "max_points": "не выбрано" if user_lang == "ru" else "not selected",
         "date": "не выбрана" if user_lang == "ru" else "not selected",
         "time": "не выбрано" if user_lang == "ru" else "not selected",
-        "format": "не выбран" if user_lang == "ru" else "not selected",
-        "book_type": "не выбран" if user_lang == "ru" else "not selected",
-        "details": ""
+        "format": "не выбран" if user_lang == "ru" else "not selected"
     }
 
     message = await format_task_message(context)
@@ -560,64 +518,10 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return EDITING_TASK
 
-async def callback_edit_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    user_lang = get_user_language(user_id)
-
-    if user_id not in ALLOWED_USERS:
-        await query.edit_message_text(
-            "⛔ У вас нет доступа к редактированию заданий." if user_lang == "ru" else "⛔ You don't have access to edit tasks.",
-            reply_markup=main_menu_keyboard(user_lang))
-        return ConversationHandler.END
-
-    group = ALLOWED_USERS[user_id]
-    await show_tasks_for_group(query, group, show_edit_buttons=True)
-    return EDITING_TASK
-
 async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_lang = get_user_language(query.from_user.id)
-    
-    if query.data.startswith("edit_"):
-        task_id = query.data.split("_")[1:]
-        if len(task_id) == 2:  # Это редактирование существующего задания
-            group = task_id[0]
-            row_idx = int(task_id[1])
-            
-            try:
-                sheet = sheets[group]
-                row_data = sheet.row_values(row_idx)
-                
-                if len(row_data) >= 9:
-                    context.user_data["task_data"] = {
-                        "group": group,
-                        "row_idx": row_idx,
-                        "subject": row_data[0],
-                        "task_type": row_data[1],
-                        "format": row_data[2],
-                        "max_points": row_data[3],
-                        "date": row_data[4],
-                        "time": row_data[5],
-                        "book_type": row_data[7] if len(row_data) > 7 else "",
-                        "details": row_data[8] if len(row_data) > 8 else ""
-                    }
-                    
-                    message = await format_task_message(context)
-                    await query.edit_message_text(
-                        message,
-                        reply_markup=generate_edit_task_keyboard(user_lang),
-                        parse_mode='HTML'
-                    )
-                    return EDITING_TASK
-            except Exception as e:
-                logger.error(f"Ошибка при загрузке задания для редактирования: {e}")
-                await query.edit_message_text(
-                    "⛔ Ошибка при загрузке задания." if user_lang == "ru" else "⛔ Error loading task.",
-                    reply_markup=main_menu_keyboard(user_lang))
-                return ConversationHandler.END
     
     if query.data == "edit_subject":
         await query.edit_message_text(
@@ -631,7 +535,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     elif query.data == "edit_max_points":
         await query.edit_message_text(
-            "💯 Выберите количество баллов курса:" if user_lang == "ru" else "💯 Select course points:",
+            "💯 Выберите максимальное количество баллов:" if user_lang == "ru" else "💯 Select maximum points:",
             reply_markup=generate_points_keyboard(user_lang)
         )
     elif query.data == "edit_date":
@@ -648,16 +552,6 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(
             "📍 Выберите формат:" if user_lang == "ru" else "📍 Select format:",
             reply_markup=generate_format_keyboard(user_lang)
-        )
-    elif query.data == "edit_book_type":
-        await query.edit_message_text(
-            "📖 Выберите тип экзамена:" if user_lang == "ru" else "📖 Select exam type:",
-            reply_markup=generate_book_type_keyboard(user_lang)
-        )
-    elif query.data == "edit_details":
-        await query.edit_message_text(
-            "📝 Выберите детали:" if user_lang == "ru" else "📝 Select details:",
-            reply_markup=generate_details_keyboard(user_lang)
         )
     elif query.data == "back_to_editing":
         message = await format_task_message(context)
@@ -718,33 +612,6 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
-    elif query.data in ["open_book", "closed_book"]:
-        context.user_data["task_data"]["book_type"] = "Open-book" if query.data == "open_book" else "Closed-book"
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_lang),
-            parse_mode='HTML'
-        )
-    elif query.data in ["calc_allowed", "phone_allowed", "slides_allowed", "notes_allowed", "formulas_ref"]:
-        details_mapping = {
-            "calc_allowed": "Можно простой калькулятор" if user_lang == "ru" else "Simple calculator allowed",
-            "phone_allowed": "Можно телефон" if user_lang == "ru" else "Phone allowed",
-            "slides_allowed": "Можно распечатанные слайды" if user_lang == "ru" else "Printed slides allowed",
-            "notes_allowed": "Можно конспекты" if user_lang == "ru" else "Notes allowed",
-            "formulas_ref": "Формулы будут в справке" if user_lang == "ru" else "Formulas in reference"
-        }
-        context.user_data["task_data"]["details"] = details_mapping[query.data]
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_lang),
-            parse_mode='HTML'
-        )
-    elif query.data == "custom_details":
-        await query.edit_message_text("📝 Введите свои детали:" if user_lang == "ru" else "📝 Enter custom details:")
-        context.user_data["waiting_for"] = "details"
-        return WAITING_FOR_INPUT
     elif query.data == "other_subject":
         await query.edit_message_text("✍️ Введите название предмета:" if user_lang == "ru" else "✍️ Enter subject name:")
         context.user_data["waiting_for"] = "subject"
@@ -754,7 +621,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data["waiting_for"] = "task_type"
         return WAITING_FOR_INPUT
     elif query.data == "other_max_points":
-        await query.edit_message_text("💯 Введите количество баллов курса:" if user_lang == "ru" else "💯 Enter course points:")
+        await query.edit_message_text("💯 Введите количество баллов:" if user_lang == "ru" else "💯 Enter points:")
         context.user_data["waiting_for"] = "max_points"
         return WAITING_FOR_INPUT
     elif query.data == "custom_date":
@@ -771,7 +638,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             task_data["format"] == ("не выбран" if user_lang == "ru" else "not selected")):
             
             await query.answer(
-                "⚠️ Заполните все обязательные поля перед сохранением!" if user_lang == "ru" else "⚠️ Fill all required fields before saving!",
+                "⚠️ Заполните все поля перед сохранением!" if user_lang == "ru" else "⚠️ Fill all fields before saving!",
                 show_alert=True)
             return EDITING_TASK
         
@@ -786,25 +653,17 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
                 task_data["max_points"],
                 task_data["date"],
                 task_data["time"],
-                group,
-                task_data.get("book_type", ""),
-                task_data.get("details", "")
+                group
             ]
             
-            if "row_idx" in task_data:  # Редактирование существующего задания
-                sheet.update(f"A{task_data['row_idx']}:I{task_data['row_idx']}", [row_data])
-                action_text = "обновлено" if user_lang == "ru" else "updated"
-            else:  # Добавление нового задания
-                sheet.append_row(row_data)
-                action_text = "добавлено" if user_lang == "ru" else "added"
-            
+            sheet.append_row(row_data)
             context.user_data.clear()
             
             # Обновляем напоминания для всех пользователей группы
             await refresh_reminders_for_group(context.application.job_queue, group)
             
             await query.edit_message_text(
-                f"✅ Задание успешно {action_text}!" if user_lang == "ru" else f"✅ Task {action_text} successfully!",
+                "✅ Задание успешно добавлено!" if user_lang == "ru" else "✅ Task added successfully!",
                 reply_markup=main_menu_keyboard(user_lang))
         except Exception as e:
             logger.error(f"Ошибка при сохранении задания: {e}")
@@ -847,8 +706,6 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ Неверный формат даты. Введите дату в формате ДД.ММ (например, 15.12)" if user_lang == "ru" else 
                 "⚠️ Wrong date format. Enter date in DD.MM format (e.g., 15.12)")
             return WAITING_FOR_INPUT
-    elif waiting_for == "details":
-        context.user_data["task_data"]["details"] = user_input
     
     del context.user_data["waiting_for"]
     
@@ -923,7 +780,7 @@ async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAU
         
         keyboard = [
             [InlineKeyboardButton(
-                "🔔 Напоминания: Вкл" if reminders_enabled else "🔔 Напоминания: Выкл",
+                "🔔 Reminders: On" if reminders_enabled else "🔔 Reminders: Off",
                 callback_data="toggle_reminders")],
             [InlineKeyboardButton(
                 "↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu",
@@ -973,6 +830,40 @@ async def toggle_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛔ Произошла ошибка при изменении настроек." if user_lang == "ru" else "⛔ Error changing settings.",
             reply_markup=main_menu_keyboard(user_lang))
 
+async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    user_lang = get_user_language(user_id)
+    
+    try:
+        test_data = {
+            'subject': "Test Subject",
+            'task_type': "Test Task",
+            'date': datetime.now(MOSCOW_TZ).strftime("%d.%m"),
+            'time': "10:00",
+            'days_left': 1,
+            'max_points': "10",
+            'format': "Online"
+        }
+        
+        context.job_queue.run_once(
+            send_daily_reminder,
+            5,
+            chat_id=user_id,
+            data={'tasks': [test_data]},
+            name=f"test_reminder_{user_id}"
+        )
+        
+        await query.edit_message_text(
+            "🔔 Тестовое напоминание будет отправлено через 5 секунд!" if user_lang == "ru" else "🔔 Test reminder will be sent in 5 seconds!",
+            reply_markup=main_menu_keyboard(user_lang))
+    except Exception as e:
+        logger.error(f"Ошибка в test_reminder: {e}")
+        await query.edit_message_text(
+            "⛔ Произошла ошибка при отправке тестового напоминания." if user_lang == "ru" else "⛔ Error sending test reminder.",
+            reply_markup=main_menu_keyboard(user_lang))
+
 async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
     """Запланировать напоминания для пользователя"""
     try:
@@ -981,7 +872,7 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
         # Удаление старых напоминаний
         removed = 0
         for job in job_queue.jobs():
-            if job.name and str(user_id) in job.name:
+            if job.name and str(user_id) in job.name and not job.name.startswith("test_"):
                 job.schedule_removal()
                 removed += 1
         logger.info(f"Удалено старых напоминаний: {removed}")
@@ -1013,7 +904,7 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
         tasks_for_reminder = []
         
         for row in data:
-            if len(row) >= 9 and row[6] == group:
+            if len(row) >= 7 and row[6] == group:
                 try:
                     deadline = convert_to_datetime(row[5], row[4])
                     if not deadline:
@@ -1028,38 +919,38 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
                             'time': row[5],
                             'days_left': days_left,
                             'max_points': row[3],
-                            'format': row[2],
-                            'book_type': row[7] if len(row) > 7 else "",
-                            'details': row[8] if len(row) > 8 else ""
+                            'format': row[2]
                         })
                 except Exception as e:
                     logger.error(f"Ошибка обработки строки {row}: {e}")
 
         logger.info(f"Заданий для напоминания: {len(tasks_for_reminder)}")
         
-        if not tasks_for_reminder:
-            return
-        
-        tasks_for_reminder.sort(key=lambda x: x['days_left'])
-        
-        # Планирование
-        reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
-        next_reminder = datetime.combine(datetime.now().date(), reminder_time)
-        
-        if datetime.now().time() > reminder_time:
-            next_reminder += timedelta(days=1)
-        
-        next_reminder = MOSCOW_TZ.localize(next_reminder)
-        logger.info(f"Следующее напоминание запланировано на {next_reminder}")
-        
-        job_queue.run_repeating(
-            send_daily_reminder_callback,
-            interval=timedelta(days=1),
-            first=next_reminder,
-            chat_id=user_id,
-            data={'tasks': tasks_for_reminder},
-            name=f"daily_reminder_{user_id}"
-        )
+        if tasks_for_reminder:
+            tasks_for_reminder.sort(key=lambda x: x['days_left'])
+            
+            # Тестовая отправка
+#            logger.info("Отправка тестового напоминания...")
+ #           await send_daily_reminder(None, user_id, tasks_for_reminder)
+            
+            # Планирование
+            reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
+            next_reminder = datetime.combine(datetime.now().date(), reminder_time)
+            
+            if datetime.now().time() > reminder_time:
+                next_reminder += timedelta(days=1)
+            
+            next_reminder = MOSCOW_TZ.localize(next_reminder)
+            logger.info(f"Следующее напоминание запланировано на {next_reminder}")
+            
+            job_queue.run_repeating(
+                send_daily_reminder_callback,
+                interval=timedelta(days=1),
+                first=next_reminder,
+                chat_id=user_id,
+                data={'tasks': tasks_for_reminder},
+                name=f"daily_reminder_{user_id}"
+            )
 
     except Exception as e:
         logger.error(f"Критическая ошибка в schedule_reminders_for_user: {e}")
@@ -1086,7 +977,7 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
     sorted_days = sorted(tasks_by_days.keys())
     
     # Создаем сообщение
-    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ*\n\n" if user_lang == "ru" else "🔔 *DAILY REMINDER*\n\n"
+    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ О ЗАДАНИЯХ*\n\n" if user_lang == "ru" else "🔔 *DAILY TASKS REMINDER*\n\n"
     
     for days_left in sorted_days:
         if days_left == 0:
@@ -1102,18 +993,9 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
             time_display = "По расписанию" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
             message += (
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display}\n"
-                f"🏷 Формат: {task['format']}\n"
-                f"📖 Тип: {task.get('book_type', '')}\n"
-                f"💯 Баллы курса: {task['max_points']}\n"
-                + (f"📝 Детали: {task.get('details', '')}\n\n" if task.get('details') else "\n")
-                if user_lang == "ru" else
+                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n" if user_lang == "ru" else
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display}\n"
-                f"🏷 Format: {task['format']}\n"
-                f"📖 Type: {task.get('book_type', '')}\n"
-                f"💯 Course Points: {task['max_points']}\n"
-                + (f"📝 Details: {task.get('details', '')}\n\n" if task.get('details') else "\n")
+                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n"
             )
     
     try:
@@ -1145,6 +1027,17 @@ async def refresh_reminders_for_group(job_queue: JobQueue, group: str):
                 await schedule_reminders_for_user(job_queue, user_id)
     except Exception as e:
         logger.error(f"Ошибка в refresh_reminders_for_group: {e}")
+
+async def check_reminders_now(context: ContextTypes.DEFAULT_TYPE):
+    """Проверить и отправить напоминания прямо сейчас"""
+    try:
+        users = sheets["Users"].get_all_values()
+        for row in users[1:]:
+            if len(row) > 2 and row[2].lower() == 'true':
+                user_id = int(row[0])
+                await schedule_reminders_for_user(context.job_queue, user_id)
+    except Exception as e:
+        logger.error(f"Ошибка в check_reminders_now: {e}")
 
 async def callback_language_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1202,6 +1095,7 @@ def main():
     application.add_handler(CallbackQueryHandler(callback_back_to_menu, pattern="back_to_menu"))
     application.add_handler(CallbackQueryHandler(callback_reminder_settings, pattern="reminder_settings"))
     application.add_handler(CallbackQueryHandler(toggle_reminders, pattern="toggle_reminders"))
+    application.add_handler(CallbackQueryHandler(test_reminder, pattern="test_reminder"))
     application.add_handler(CallbackQueryHandler(callback_select_group, pattern="select_group"))
     application.add_handler(CallbackQueryHandler(set_user_group, pattern="^set_group_B-11$|^set_group_B-12$"))
     application.add_handler(CallbackQueryHandler(callback_language_settings, pattern="language_settings"))
@@ -1210,16 +1104,6 @@ def main():
     # Обработчик для добавления заданий
     add_task_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(callback_add_task, pattern="add_task")],
-        states={
-            EDITING_TASK: [CallbackQueryHandler(edit_task_parameter)],
-            WAITING_FOR_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input)],
-        },
-        fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
-    )
-
-    # Обработчик для редактирования заданий
-    edit_task_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(callback_edit_task, pattern="edit_task")],
         states={
             EDITING_TASK: [CallbackQueryHandler(edit_task_parameter)],
             WAITING_FOR_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input)],
@@ -1247,11 +1131,28 @@ def main():
     )
 
     application.add_handler(add_task_handler)
-    application.add_handler(edit_task_handler)
     application.add_handler(delete_task_handler)
     application.add_handler(feedback_handler)
     
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Настраиваем периодическую проверку напоминаний
+    job_queue = application.job_queue
+    if job_queue:
+        # Проверка каждую минуту (для надежности)
+      #  job_queue.run_repeating(
+       #     check_reminders_now,
+      #      interval=REMINDER_CHECK_INTERVAL,
+      #      first=10,
+      #      name="reminders_check"
+      #  )
+        
+        # При запуске бота сразу проверим напоминания
+        job_queue.run_once(
+            lambda ctx: check_reminders_now(ctx),
+            when=0,
+            name="initial_reminders_check"
+        )
+    
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
