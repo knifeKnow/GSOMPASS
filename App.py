@@ -42,7 +42,7 @@ sheets = {
 
 ALLOWED_USERS = {
     1042880639: "B-11",  # Mariia
-    1062616885: "B-12"    # Poka chto Ya
+    1062616885: "B-12"    # Poka chto Ya 
 }
 
 # Стейты
