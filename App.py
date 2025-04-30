@@ -41,8 +41,8 @@ sheets = {
 }
 
 ALLOWED_USERS = {
-    1042880639: "B-11",  # Mariia   1062616885  797969195
-    1062616885: "B-12"    # Poka chto Ya    1062616885  1042880639
+    1042880639: "B-11",  # Mariia
+    1062616885: "B-12"    # Poka chto Ya
 }
 
 # Стейты
@@ -265,15 +265,19 @@ async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delet
                 response += (
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
-                    f"🗓 Дата: {row[4]} | Время: {time_display} | Баллы: {row[3]}\n"
+                    f"🗓 Дата: {row[4]} | Время: {time_display}\n"
+                    f"🏷 Формат: {row[2]}\n"
                     f"📖 Тип: {row[7]}\n"
-                    f"📝 Детали: {row[8]}\n"
+                    f"💯 Баллы курса: {row[3]}\n"
+                    + (f"📝 Детали: {row[8]}\n" if row[8] else "")
                     if user_lang == "ru" else 
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
-                    f"🗓 Date: {row[4]} | Time: {time_display} | Points: {row[3]}\n"
+                    f"🗓 Date: {row[4]} | Time: {time_display}\n"
+                    f"🏷 Format: {row[2]}\n"
                     f"📖 Type: {row[7]}\n"
-                    f"📝 Details: {row[8]}\n"
+                    f"💯 Course Points: {row[3]}\n"
+                    + (f"📝 Details: {row[8]}\n" if row[8] else "")
                 )
                 
                 if show_edit_buttons:
@@ -392,7 +396,7 @@ def generate_edit_task_keyboard(user_lang="ru"):
             InlineKeyboardButton("📘 Тип задания" if user_lang == "ru" else "📘 Task type", callback_data="edit_task_type")
         ],
         [
-            InlineKeyboardButton("💯 Баллы" if user_lang == "ru" else "💯 Points", callback_data="edit_max_points"),
+            InlineKeyboardButton("💯 Баллы курса" if user_lang == "ru" else "💯 Course Points", callback_data="edit_max_points"),
             InlineKeyboardButton("🗓️ Дата" if user_lang == "ru" else "🗓️ Date", callback_data="edit_date")
         ],
         [
@@ -507,7 +511,7 @@ async def format_task_message(context):
     message = "📝 Редактирование задания:\n\n" if user_lang == "ru" else "📝 Editing task:\n\n"
     message += f"🔹 <b>Предмет:</b> {task_data.get('subject', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Тип задания:</b> {task_data.get('task_type', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Макс. баллы:</b> {task_data.get('max_points', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>Баллы курса:</b> {task_data.get('max_points', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Дата:</b> {task_data.get('date', 'не выбрана' if user_lang == 'ru' else 'not selected')}\n"
     
     time_display = task_data.get('time', 'не выбрано' if user_lang == 'ru' else 'not selected')
@@ -519,8 +523,9 @@ async def format_task_message(context):
     
     message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_lang == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Тип экзамена:</b> {task_data.get('book_type', 'не выбран' if user_lang == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Детали:</b> {task_data.get('details', 'не указаны' if user_lang == 'ru' else 'not specified')}\n\n"
-    message += "Выберите параметр для изменения или сохраните задание:" if user_lang == "ru" else "Select a parameter to change or save the task:"
+    if task_data.get('details'):
+        message += f"🔹 <b>Детали:</b> {task_data.get('details')}\n"
+    message += "\nВыберите параметр для изменения или сохраните задание:" if user_lang == "ru" else "\nSelect a parameter to change or save the task:"
     return message
 
 async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -544,7 +549,7 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "time": "не выбрано" if user_lang == "ru" else "not selected",
         "format": "не выбран" if user_lang == "ru" else "not selected",
         "book_type": "не выбран" if user_lang == "ru" else "not selected",
-        "details": "не указаны" if user_lang == "ru" else "not specified"
+        "details": ""
     }
 
     message = await format_task_message(context)
@@ -626,7 +631,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     elif query.data == "edit_max_points":
         await query.edit_message_text(
-            "💯 Выберите максимальное количество баллов:" if user_lang == "ru" else "💯 Select maximum points:",
+            "💯 Выберите количество баллов курса:" if user_lang == "ru" else "💯 Select course points:",
             reply_markup=generate_points_keyboard(user_lang)
         )
     elif query.data == "edit_date":
@@ -687,9 +692,9 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode='HTML'
         )
     elif len(query.data.split('.')) == 2 and query.data.count('.') == 1:
-        context.user_data["task_data"]["date"] = user_input
+        context.user_data["task_data"]["date"] = query.data
         message = await format_task_message(context)
-        await update.message.reply_text(
+        await query.edit_message_text(
             message,
             reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
@@ -749,7 +754,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data["waiting_for"] = "task_type"
         return WAITING_FOR_INPUT
     elif query.data == "other_max_points":
-        await query.edit_message_text("💯 Введите количество баллов:" if user_lang == "ru" else "💯 Enter points:")
+        await query.edit_message_text("💯 Введите количество баллов курса:" if user_lang == "ru" else "💯 Enter course points:")
         context.user_data["waiting_for"] = "max_points"
         return WAITING_FOR_INPUT
     elif query.data == "custom_date":
@@ -1097,13 +1102,18 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
             time_display = "По расписанию" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
             message += (
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n"
+                f"🗓 {task['date']} | ⏰ {time_display}\n"
+                f"🏷 Формат: {task['format']}\n"
                 f"📖 Тип: {task.get('book_type', '')}\n"
-                f"📝 Детали: {task.get('details', '')}\n\n" if user_lang == "ru" else
+                f"💯 Баллы курса: {task['max_points']}\n"
+                + (f"📝 Детали: {task.get('details', '')}\n\n" if task.get('details') else "\n")
+                if user_lang == "ru" else
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n"
+                f"🗓 {task['date']} | ⏰ {time_display}\n"
+                f"🏷 Format: {task['format']}\n"
                 f"📖 Type: {task.get('book_type', '')}\n"
-                f"📝 Details: {task.get('details', '')}\n\n"
+                f"💯 Course Points: {task['max_points']}\n"
+                + (f"📝 Details: {task.get('details', '')}\n\n" if task.get('details') else "\n")
             )
     
     try:
