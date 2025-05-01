@@ -1,9 +1,9 @@
 import os
- import json
- import gspread
- from oauth2client.service_account import ServiceAccountCredentials
- from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
- from telegram.ext import (
+import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
      Application,
      CommandHandler,
      CallbackQueryHandler,
@@ -13,9 +13,9 @@ import os
      ConversationHandler,
      JobQueue,
  )
- from datetime import datetime, timedelta
- import pytz
- import logging
+from datetime import datetime, timedelta
+import pytz
+import logging
  
  # Настройка логирования
  logging.basicConfig(
