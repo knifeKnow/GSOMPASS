@@ -86,8 +86,10 @@ def main_menu_keyboard(user_lang="ru"):
             InlineKeyboardButton("➕ Добавить задание" if user_lang == "ru" else "➕ Add task", callback_data="add_task"),
             InlineKeyboardButton("🗑️ Удалить задание" if user_lang == "ru" else "🗑️ Delete task", callback_data="delete_task")
         ],
-        [InlineKeyboardButton("👥 Выбор группы" if user_lang == "ru" else "👥 Select group", callback_data="select_group")],
-        [InlineKeyboardButton("⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", callback_data="help")],
+        [
+            InlineKeyboardButton("👥 Выбор группы" if user_lang == "ru" else "👥 Select group", callback_data="select_group"),
+            InlineKeyboardButton("⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", callback_data="help")
+        ],
         [InlineKeyboardButton("↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", callback_data="back_to_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -463,7 +465,7 @@ def generate_date_buttons(user_lang="ru"):
 def generate_format_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Online", callback_data="Online"),
-         InlineKeyboardButton("Offline - MD", callback_data="Offline - MD")],
+         InlineKeyboardButton("Offline", callback_data="Offline")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -535,7 +537,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     elif query.data == "edit_max_points":
         await query.edit_message_text(
-            "💯 Выберите максимальное количество баллов:" if user_lang == "ru" else "💯 Select maximum points:",
+            "💯 Выберите количество баллов от курса:" if user_lang == "ru" else "💯 Select course points:",
             reply_markup=generate_points_keyboard(user_lang)
         )
     elif query.data == "edit_date":
@@ -929,10 +931,6 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
         if tasks_for_reminder:
             tasks_for_reminder.sort(key=lambda x: x['days_left'])
             
-            # Тестовая отправка
-#            logger.info("Отправка тестового напоминания...")
- #           await send_daily_reminder(None, user_id, tasks_for_reminder)
-            
             # Планирование
             reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
             next_reminder = datetime.combine(datetime.now().date(), reminder_time)
@@ -977,7 +975,7 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
     sorted_days = sorted(tasks_by_days.keys())
     
     # Создаем сообщение
-    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ О ЗАДАНИЯХ*\n\n" if user_lang == "ru" else "🔔 *DAILY TASKS REMINDER*\n\n"
+    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ*\n\n" if user_lang == "ru" else "🔔 *DAILY TASKS REMINDER*\n\n"
     
     for days_left in sorted_days:
         if days_left == 0:
