@@ -49,7 +49,6 @@ ALLOWED_USERS = {
 EDITING_TASK = 1
 WAITING_FOR_INPUT = 2
 WAITING_FOR_FEEDBACK = 3
-EDITING_EXISTING_TASK = 4
 
 # Языки
 LANGUAGES = {
@@ -206,7 +205,6 @@ async def handle_feedback_input(update: Update, context: ContextTypes.DEFAULT_TY
         user_row = next((i for i, row in enumerate(users) if len(row) > 0 and str(user_id) == row[0]), None)
         
         if user_row is not None:
-            # Обновляем фидбэк в таблице (столбец E)
             sheets["Users"].update_cell(user_row + 1, 5, feedback_text)
             
             await update.message.reply_text(
@@ -237,7 +235,7 @@ async def cancel_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu_keyboard(user_lang))
     return ConversationHandler.END
 
-async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edit_buttons=False):
+async def show_tasks_for_group(query, group, show_delete_buttons=False):
     sheet = sheets[group]
     try:
         all_values = sheet.get_all_values()
@@ -279,16 +277,11 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edi
                         f"🗑️ Удалить: {row[0]} ({row[4]})" if user_lang == "ru" else f"🗑️ Delete: {row[0]} ({row[4]})",
                         callback_data=f"delete_{group}_{row_idx}"
                     )])
-                elif show_edit_buttons:
-                    keyboard.append([InlineKeyboardButton(
-                        f"✏️ Редактировать: {row[0]} ({row[4]})" if user_lang == "ru" else f"✏️ Edit: {row[0]} ({row[4]})",
-                        callback_data=f"edit_{group}_{row_idx}"
-                    )])
 
         if count == 0:
             response = "ℹ️ Пока нет заданий для вашей группы." if user_lang == "ru" else "ℹ️ No tasks for your group yet."
 
-        if show_delete_buttons or show_edit_buttons:
+        if show_delete_buttons:
             keyboard.append([InlineKeyboardButton("↩️ Назад" if user_lang == "ru" else "↩️ Back", callback_data="back_to_menu")])
             reply_markup = InlineKeyboardMarkup(keyboard)
         else:
@@ -383,7 +376,7 @@ async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛔ Произошла ошибка при установке группы." if user_lang == "ru" else "⛔ An error occurred while setting the group.",
             reply_markup=main_menu_keyboard(user_lang))
 
-def generate_edit_task_keyboard(user_lang="ru", is_existing_task=False):
+def generate_edit_task_keyboard(user_lang="ru"):
     keyboard = [
         [
             InlineKeyboardButton("✍️ Предмет" if user_lang == "ru" else "✍️ Subject", callback_data="edit_subject"),
@@ -396,19 +389,12 @@ def generate_edit_task_keyboard(user_lang="ru", is_existing_task=False):
         [
             InlineKeyboardButton("⏰ Время" if user_lang == "ru" else "⏰ Time", callback_data="edit_time"),
             InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
-        ]
-    ]
-    
-    if is_existing_task:
-        keyboard.append([
-            InlineKeyboardButton("✅ Сохранить изменения" if user_lang == "ru" else "✅ Save changes", callback_data="save_existing_task"),
-            InlineKeyboardButton("❌ Отменить" if user_lang == "ru" else "❌ Cancel", callback_data="cancel_existing_task")
-        ])
-    else:
-        keyboard.append([
+        ],
+        [
             InlineKeyboardButton("✅ Сохранить" if user_lang == "ru" else "✅ Save", callback_data="save_task"),
             InlineKeyboardButton("❌ Отменить" if user_lang == "ru" else "❌ Cancel", callback_data="cancel_task")
-        ])
+        ]
+    ]
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -485,29 +471,57 @@ def generate_format_keyboard(user_lang="ru"):
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
-async def format_task_message(context, is_existing_task=False):
+async def format_task_message(context, changed_field=None):
     task_data = context.user_data.get("task_data", {})
     user_lang = get_user_language(context._user_id) if hasattr(context, '_user_id') else "ru"
     
     message = "📝 Редактирование задания:\n\n" if user_lang == "ru" else "📝 Editing task:\n\n"
-    message += f"🔹 <b>Предмет:</b> {task_data.get('subject', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Тип задания:</b> {task_data.get('task_type', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Макс. баллы:</b> {task_data.get('max_points', 'не выбрано' if user_lang == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Дата:</b> {task_data.get('date', 'не выбрана' if user_lang == 'ru' else 'not selected')}\n"
+    
+    # Функция для подсветки измененных полей
+    def format_field(field_name, value, default_text):
+        if field_name == changed_field:
+            return f"🔹 <b>{field_name}:</b> <u>{value if value else default_text}</u>\n"
+        return f"🔹 <b>{field_name}:</b> {value if value else default_text}\n"
+    
+    message += format_field(
+        "Предмет" if user_lang == "ru" else "Subject",
+        task_data.get('subject'),
+        'не выбрано' if user_lang == 'ru' else 'not selected'
+    )
+    message += format_field(
+        "Тип задания" if user_lang == "ru" else "Task type",
+        task_data.get('task_type'),
+        'не выбрано' if user_lang == 'ru' else 'not selected'
+    )
+    message += format_field(
+        "Макс. баллы" if user_lang == "ru" else "Max points",
+        task_data.get('max_points'),
+        'не выбрано' if user_lang == 'ru' else 'not selected'
+    )
+    message += format_field(
+        "Дата" if user_lang == "ru" else "Date",
+        task_data.get('date'),
+        'не выбрана' if user_lang == 'ru' else 'not selected'
+    )
     
     time_display = task_data.get('time', 'не выбрано' if user_lang == 'ru' else 'not selected')
     if time_display == "23:59":
         time_display = "By schedule" if user_lang == "en" else "По расписанию"
     elif time_display == "time_schedule":
         time_display = "By schedule" if user_lang == "en" else "По расписанию"
-    message += f"🔹 <b>Время:</b> {time_display}\n"
     
-    message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_lang == 'ru' else 'not selected')}\n\n"
+    message += format_field(
+        "Время" if user_lang == "ru" else "Time",
+        time_display,
+        'не выбрано' if user_lang == 'ru' else 'not selected'
+    )
+    message += format_field(
+        "Формат" if user_lang == "ru" else "Format",
+        task_data.get('format'),
+        'не выбран' if user_lang == 'ru' else 'not selected'
+    )
     
-    if is_existing_task:
-        message += "Выберите параметр для изменения или сохраните изменения:" if user_lang == "ru" else "Select a parameter to change or save changes:"
-    else:
-        message += "Выберите параметр для изменения или сохраните задание:" if user_lang == "ru" else "Select a parameter to change or save the task:"
+    message += "\nВыберите параметр для изменения или сохраните задание:" if user_lang == "ru" else "\nSelect a parameter to change or save the task:"
     
     return message
 
@@ -525,12 +539,12 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["task_data"] = {
         "group": ALLOWED_USERS[user_id],
-        "subject": "не выбрано" if user_lang == "ru" else "not selected",
-        "task_type": "не выбрано" if user_lang == "ru" else "not selected",
-        "max_points": "не выбрано" if user_lang == "ru" else "not selected",
-        "date": "не выбрана" if user_lang == "ru" else "not selected",
-        "time": "не выбрано" if user_lang == "ru" else "not selected",
-        "format": "не выбран" if user_lang == "ru" else "not selected"
+        "subject": None,
+        "task_type": None,
+        "max_points": None,
+        "date": None,
+        "time": None,
+        "format": None
     }
 
     message = await format_task_message(context)
@@ -553,64 +567,31 @@ async def callback_edit_task(update: Update, context: ContextTypes.DEFAULT_TYPE)
             reply_markup=main_menu_keyboard(user_lang))
         return ConversationHandler.END
 
-    group = ALLOWED_USERS[user_id]
-    await show_tasks_for_group(query, group, show_edit_buttons=True)
-    return EDITING_EXISTING_TASK
+    # Просто возвращаем пользователя к процессу добавления задания
+    # с текущими данными (если они есть) или пустой формой
+    if "task_data" not in context.user_data:
+        context.user_data["task_data"] = {
+            "group": ALLOWED_USERS[user_id],
+            "subject": None,
+            "task_type": None,
+            "max_points": None,
+            "date": None,
+            "time": None,
+            "format": None
+        }
 
-async def edit_existing_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    user_lang = get_user_language(user_id)
-    
-    if query.data == "back_to_menu":
-        await callback_back_to_menu(update, context)
-        return ConversationHandler.END
-    
-    if query.data.startswith("edit_"):
-        try:
-            _, group, row_idx = query.data.split("_")
-            row_idx = int(row_idx)
-            sheet = sheets[group]
-            
-            row_data = sheet.row_values(row_idx)
-            
-            if len(row_data) >= 7:
-                context.user_data["task_data"] = {
-                    "group": group,
-                    "subject": row_data[0],
-                    "task_type": row_data[1],
-                    "format": row_data[2],
-                    "max_points": row_data[3],
-                    "date": row_data[4],
-                    "time": row_data[5],
-                    "row_idx": row_idx
-                }
-                
-                message = await format_task_message(context, is_existing_task=True)
-                await query.edit_message_text(
-                    message,
-                    reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task=True),
-                    parse_mode='HTML'
-                )
-                return EDITING_EXISTING_TASK
-            else:
-                await query.edit_message_text(
-                    "⛔ Не удалось загрузить данные задания." if user_lang == "ru" else "⛔ Failed to load task data.",
-                    reply_markup=main_menu_keyboard(user_lang))
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке задания для редактирования: {e}")
-            await query.edit_message_text(
-                f"⛔ Ошибка при загрузке задания: {str(e)}" if user_lang == "ru" else f"⛔ Error loading task: {str(e)}",
-                reply_markup=main_menu_keyboard(user_lang))
-    
-    return ConversationHandler.END
+    message = await format_task_message(context)
+    await query.edit_message_text(
+        message,
+        reply_markup=generate_edit_task_keyboard(user_lang),
+        parse_mode='HTML'
+    )
+    return EDITING_TASK
 
 async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_lang = get_user_language(query.from_user.id)
-    is_existing_task = context.user_data.get("is_existing_task", False)
     
     if query.data == "edit_subject":
         await query.edit_message_text(
@@ -643,43 +624,43 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=generate_format_keyboard(user_lang)
         )
     elif query.data == "back_to_editing":
-        message = await format_task_message(context, is_existing_task)
+        message = await format_task_message(context)
         await query.edit_message_text(
             message,
-            reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+            reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
     elif query.data.startswith(("Maths", "Management", "DigTools", "FinAcc", "Microeconomics")):
         context.user_data["task_data"]["subject"] = query.data
-        message = await format_task_message(context, is_existing_task)
+        message = await format_task_message(context, "Предмет" if user_lang == "ru" else "Subject")
         await query.edit_message_text(
             message,
-            reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+            reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
     elif query.data.startswith(("Test", "HW", "MidTerm", "FinalTest")):
         context.user_data["task_data"]["task_type"] = query.data
-        message = await format_task_message(context, is_existing_task)
+        message = await format_task_message(context, "Тип задания" if user_lang == "ru" else "Task type")
         await query.edit_message_text(
             message,
-            reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+            reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
     elif query.data.startswith("points_"):
         points_value = query.data[7:]
         context.user_data["task_data"]["max_points"] = points_value
-        message = await format_task_message(context, is_existing_task)
+        message = await format_task_message(context, "Макс. баллы" if user_lang == "ru" else "Max points")
         await query.edit_message_text(
             message,
-            reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+            reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
     elif len(query.data.split('.')) == 2 and query.data.count('.') == 1:
         context.user_data["task_data"]["date"] = query.data
-        message = await format_task_message(context, is_existing_task)
+        message = await format_task_message(context, "Дата" if user_lang == "ru" else "Date")
         await query.edit_message_text(
             message,
-            reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+            reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
     elif query.data.startswith("time_"):
@@ -687,18 +668,18 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         if time_value == "schedule":
             time_value = "23:59"
         context.user_data["task_data"]["time"] = time_value
-        message = await format_task_message(context, is_existing_task)
+        message = await format_task_message(context, "Время" if user_lang == "ru" else "Time")
         await query.edit_message_text(
             message,
-            reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+            reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
     elif query.data in ["Online", "Offline - MD"]:
         context.user_data["task_data"]["format"] = query.data
-        message = await format_task_message(context, is_existing_task)
+        message = await format_task_message(context, "Формат" if user_lang == "ru" else "Format")
         await query.edit_message_text(
             message,
-            reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+            reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
     elif query.data == "other_subject":
@@ -719,12 +700,8 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         return WAITING_FOR_INPUT
     elif query.data == "save_task":
         task_data = context.user_data.get("task_data", {})
-        if (task_data["subject"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["task_type"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["max_points"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["date"] == ("не выбрана" if user_lang == "ru" else "not selected") or 
-            task_data["time"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["format"] == ("не выбран" if user_lang == "ru" else "not selected")):
+        if not all([task_data.get("subject"), task_data.get("task_type"), task_data.get("max_points"), 
+                   task_data.get("date"), task_data.get("time"), task_data.get("format")]):
             
             await query.answer(
                 "⚠️ Заполните все поля перед сохранением!" if user_lang == "ru" else "⚠️ Fill all fields before saving!",
@@ -746,92 +723,51 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             ]
             
             sheet.append_row(row_data)
-            context.user_data.clear()
+            
+            # Не очищаем task_data, чтобы можно было продолжать редактирование
+            # context.user_data.clear()
             
             # Обновляем напоминания для всех пользователей группы
             await refresh_reminders_for_group(context.application.job_queue, group)
             
             await query.edit_message_text(
-                "✅ Задание успешно добавлено!" if user_lang == "ru" else "✅ Task added successfully!",
-                reply_markup=main_menu_keyboard(user_lang))
+                "✅ Задание успешно добавлено! Продолжайте редактирование или вернитесь в меню." if user_lang == "ru" else 
+                "✅ Task added successfully! Continue editing or return to menu.",
+                reply_markup=generate_edit_task_keyboard(user_lang))
         except Exception as e:
             logger.error(f"Ошибка при сохранении задания: {e}")
             await query.edit_message_text(
                 f"⛔ Произошла ошибка при сохранении: {str(e)}" if user_lang == "ru" else f"⛔ Error saving: {str(e)}",
                 reply_markup=main_menu_keyboard(user_lang))
-        return ConversationHandler.END
-    elif query.data == "save_existing_task":
-        task_data = context.user_data.get("task_data", {})
-        if (task_data["subject"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["task_type"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["max_points"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["date"] == ("не выбрана" if user_lang == "ru" else "not selected") or 
-            task_data["time"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["format"] == ("не выбран" if user_lang == "ru" else "not selected")):
-            
-            await query.answer(
-                "⚠️ Заполните все поля перед сохранением!" if user_lang == "ru" else "⚠️ Fill all fields before saving!",
-                show_alert=True)
-            return EDITING_EXISTING_TASK
-        
-        group = task_data["group"]
-        sheet = sheets[group]
-        row_idx = task_data["row_idx"]
-        
-        try:
-            sheet.update_cell(row_idx, 1, task_data["subject"])
-            sheet.update_cell(row_idx, 2, task_data["task_type"])
-            sheet.update_cell(row_idx, 3, task_data["format"])
-            sheet.update_cell(row_idx, 4, task_data["max_points"])
-            sheet.update_cell(row_idx, 5, task_data["date"])
-            sheet.update_cell(row_idx, 6, task_data["time"])
-            
-            context.user_data.clear()
-            
-            # Обновляем напоминания для всех пользователей группы
-            await refresh_reminders_for_group(context.application.job_queue, group)
-            
-            await query.edit_message_text(
-                "✅ Задание успешно обновлено!" if user_lang == "ru" else "✅ Task updated successfully!",
-                reply_markup=main_menu_keyboard(user_lang))
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении задания: {e}")
-            await query.edit_message_text(
-                f"⛔ Произошла ошибка при обновлении: {str(e)}" if user_lang == "ru" else f"⛔ Error updating: {str(e)}",
-                reply_markup=main_menu_keyboard(user_lang))
-        return ConversationHandler.END
     elif query.data == "cancel_task":
         context.user_data.clear()
         await query.edit_message_text(
             "🚫 Добавление задания отменено." if user_lang == "ru" else "🚫 Task addition canceled.",
             reply_markup=main_menu_keyboard(user_lang))
         return ConversationHandler.END
-    elif query.data == "cancel_existing_task":
-        context.user_data.clear()
-        await query.edit_message_text(
-            "🚫 Редактирование задания отменено." if user_lang == "ru" else "🚫 Task editing canceled.",
-            reply_markup=main_menu_keyboard(user_lang))
-        return ConversationHandler.END
     
-    return EDITING_EXISTING_TASK if is_existing_task else EDITING_TASK
+    return EDITING_TASK
 
 async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     waiting_for = context.user_data.get("waiting_for")
     user_lang = get_user_language(update.effective_user.id)
-    is_existing_task = context.user_data.get("is_existing_task", False)
     
     if waiting_for == "subject":
         context.user_data["task_data"]["subject"] = user_input
+        field_name = "Предмет" if user_lang == "ru" else "Subject"
     elif waiting_for == "task_type":
         context.user_data["task_data"]["task_type"] = user_input
+        field_name = "Тип задания" if user_lang == "ru" else "Task type"
     elif waiting_for == "max_points":
         context.user_data["task_data"]["max_points"] = user_input
+        field_name = "Макс. баллы" if user_lang == "ru" else "Max points"
     elif waiting_for == "date":
         try:
             day, month = user_input.split('.')
             if len(day) == 2 and len(month) == 2 and 1 <= int(month) <= 12 and 1 <= int(day) <= 31:
                 context.user_data["task_data"]["date"] = user_input
+                field_name = "Дата" if user_lang == "ru" else "Date"
             else:
                 await update.message.reply_text(
                     "⚠️ Неверный формат даты. Введите дату в формате ДД.ММ (например, 15.12)" if user_lang == "ru" else 
@@ -845,13 +781,13 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     del context.user_data["waiting_for"]
     
-    message = await format_task_message(context, is_existing_task)
+    message = await format_task_message(context, field_name)
     await update.message.reply_text(
         message,
-        reply_markup=generate_edit_task_keyboard(user_lang, is_existing_task),
+        reply_markup=generate_edit_task_keyboard(user_lang),
         parse_mode='HTML'
     )
-    return EDITING_EXISTING_TASK if is_existing_task else EDITING_TASK
+    return EDITING_TASK
 
 async def callback_delete_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -964,40 +900,6 @@ async def toggle_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка в toggle_reminders: {e}")
         await query.edit_message_text(
             "⛔ Произошла ошибка при изменении настроек." if user_lang == "ru" else "⛔ Error changing settings.",
-            reply_markup=main_menu_keyboard(user_lang))
-
-async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    user_lang = get_user_language(user_id)
-    
-    try:
-        test_data = {
-            'subject': "Test Subject",
-            'task_type': "Test Task",
-            'date': datetime.now(MOSCOW_TZ).strftime("%d.%m"),
-            'time': "10:00",
-            'days_left': 1,
-            'max_points': "10",
-            'format': "Online"
-        }
-        
-        context.job_queue.run_once(
-            send_daily_reminder,
-            5,
-            chat_id=user_id,
-            data={'tasks': [test_data]},
-            name=f"test_reminder_{user_id}"
-        )
-        
-        await query.edit_message_text(
-            "🔔 Тестовое напоминание будет отправлено через 5 секунд!" if user_lang == "ru" else "🔔 Test reminder will be sent in 5 seconds!",
-            reply_markup=main_menu_keyboard(user_lang))
-    except Exception as e:
-        logger.error(f"Ошибка в test_reminder: {e}")
-        await query.edit_message_text(
-            "⛔ Произошла ошибка при отправке тестового напоминания." if user_lang == "ru" else "⛔ Error sending test reminder.",
             reply_markup=main_menu_keyboard(user_lang))
 
 async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
@@ -1216,7 +1118,6 @@ def main():
     application.add_handler(CallbackQueryHandler(callback_back_to_menu, pattern="back_to_menu"))
     application.add_handler(CallbackQueryHandler(callback_reminder_settings, pattern="reminder_settings"))
     application.add_handler(CallbackQueryHandler(toggle_reminders, pattern="toggle_reminders"))
-    application.add_handler(CallbackQueryHandler(test_reminder, pattern="test_reminder"))
     application.add_handler(CallbackQueryHandler(callback_select_group, pattern="select_group"))
     application.add_handler(CallbackQueryHandler(set_user_group, pattern="^set_group_B-11$|^set_group_B-12$"))
     application.add_handler(CallbackQueryHandler(callback_language_settings, pattern="language_settings"))
@@ -1236,7 +1137,6 @@ def main():
     edit_task_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(callback_edit_task, pattern="edit_task")],
         states={
-            EDITING_EXISTING_TASK: [CallbackQueryHandler(edit_existing_task)],
             EDITING_TASK: [CallbackQueryHandler(edit_task_parameter)],
             WAITING_FOR_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input)],
         },
