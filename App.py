@@ -42,7 +42,7 @@ sheets = {
 
 ALLOWED_USERS = {
     1042880639: "B-11",  # Mariia   1062616885   1042880639
-    797969195: "B-12"    # Poka chto Ya    1062616885   797969195
+    1062616885: "B-12"    # Poka chto Ya    1062616885   797969195
 }
 
 # Стейты
@@ -84,11 +84,13 @@ def main_menu_keyboard(user_lang="ru"):
         [InlineKeyboardButton("📋 Посмотреть задания" if user_lang == "ru" else "📋 View tasks", callback_data="get_data")],
         [
             InlineKeyboardButton("➕ Добавить задание" if user_lang == "ru" else "➕ Add task", callback_data="add_task"),
+            InlineKeyboardButton("✏️ Редактировать" if user_lang == "ru" else "✏️ Edit", callback_data="edit_task"),
             InlineKeyboardButton("🗑️ Удалить задание" if user_lang == "ru" else "🗑️ Delete task", callback_data="delete_task")
         ],
-        [InlineKeyboardButton("👥 Выбор группы" if user_lang == "ru" else "👥 Select group", callback_data="select_group")],
-        [InlineKeyboardButton("⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", callback_data="help")],
-        [InlineKeyboardButton("↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", callback_data="back_to_menu")]
+        [
+            InlineKeyboardButton("👥 Выбор группы" if user_lang == "ru" else "👥 Select group", callback_data="select_group"),
+            InlineKeyboardButton("⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", callback_data="help")
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -163,6 +165,7 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 Возможности бота:\n\n"
         "• 📋 Посмотреть задания своей группы\n"
         "• ➕ Добавить задание (для кураторов)\n"
+        "• ✏️ Редактировать задание (для кураторов)\n"
         "• 🗑️ Удалить задание (для кураторов)\n"
         "• 🗓️ Данные берутся из Google Таблицы\n"
         "• 🔔 Напоминания о заданиях\n"
@@ -172,6 +175,7 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 Bot features:\n\n"
         "• 📋 View tasks for your group\n"
         "• ➕ Add task (for curators)\n"
+        "• ✏️ Edit task (for curators)\n"
         "• 🗑️ Delete task (for curators)\n"
         "• 🗓️ Data is taken from Google Sheets\n"
         "• 🔔 Task reminders\n"
@@ -233,7 +237,7 @@ async def cancel_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu_keyboard(user_lang))
     return ConversationHandler.END
 
-async def show_tasks_for_group(query, group, show_delete_buttons=False):
+async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delete_buttons=False):
     sheet = sheets[group]
     try:
         all_values = sheet.get_all_values()
@@ -270,7 +274,12 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                     f"🗓 Date: {row[4]} | Time: {time_display} | Points: {row[3]}\n"
                 )
                 
-                if show_delete_buttons:
+                if show_edit_buttons:
+                    keyboard.append([InlineKeyboardButton(
+                        f"✏️ Редактировать: {row[0]} ({row[4]})" if user_lang == "ru" else f"✏️ Edit: {row[0]} ({row[4]})",
+                        callback_data=f"edit_{group}_{row_idx}"
+                    )])
+                elif show_delete_buttons:
                     keyboard.append([InlineKeyboardButton(
                         f"🗑️ Удалить: {row[0]} ({row[4]})" if user_lang == "ru" else f"🗑️ Delete: {row[0]} ({row[4]})",
                         callback_data=f"delete_{group}_{row_idx}"
@@ -279,7 +288,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         if count == 0:
             response = "ℹ️ Пока нет заданий для вашей группы." if user_lang == "ru" else "ℹ️ No tasks for your group yet."
 
-        if show_delete_buttons:
+        if show_edit_buttons or show_delete_buttons:
             keyboard.append([InlineKeyboardButton("↩️ Назад" if user_lang == "ru" else "↩️ Back", callback_data="back_to_menu")])
             reply_markup = InlineKeyboardMarkup(keyboard)
         else:
@@ -463,7 +472,7 @@ def generate_date_buttons(user_lang="ru"):
 def generate_format_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Online", callback_data="Online"),
-         InlineKeyboardButton("Offline - MD", callback_data="Offline - MD")],
+         InlineKeyboardButton("Offline", callback_data="Offline")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -517,6 +526,69 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='HTML'
     )
     return EDITING_TASK
+
+async def callback_edit_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    user_lang = get_user_language(user_id)
+
+    if user_id not in ALLOWED_USERS:
+        await query.edit_message_text(
+            "⛔ У вас нет доступа к редактированию заданий." if user_lang == "ru" else "⛔ You don't have access to edit tasks.",
+            reply_markup=main_menu_keyboard(user_lang))
+        return ConversationHandler.END
+
+    group = ALLOWED_USERS[user_id]
+    await show_tasks_for_group(query, group, show_edit_buttons=True)
+    return EDITING_TASK
+
+async def handle_task_editing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_lang = get_user_language(query.from_user.id)
+    
+    if query.data == "back_to_menu":
+        await callback_back_to_menu(update, context)
+        return ConversationHandler.END
+    
+    if query.data.startswith("edit_"):
+        try:
+            _, group, row_idx = query.data.split("_")
+            row_idx = int(row_idx)
+            sheet = sheets[group]
+            
+            row_data = sheet.row_values(row_idx)
+            if len(row_data) >= 7:
+                context.user_data["task_data"] = {
+                    "group": group,
+                    "subject": row_data[0],
+                    "task_type": row_data[1],
+                    "format": row_data[2],
+                    "max_points": row_data[3],
+                    "date": row_data[4],
+                    "time": row_data[5],
+                    "row_idx": row_idx  # Сохраняем индекс строки для обновления
+                }
+                
+                message = await format_task_message(context)
+                await query.edit_message_text(
+                    message,
+                    reply_markup=generate_edit_task_keyboard(user_lang),
+                    parse_mode='HTML'
+                )
+                return EDITING_TASK
+            else:
+                await query.edit_message_text(
+                    "⛔ Не удалось загрузить данные задания." if user_lang == "ru" else "⛔ Failed to load task data.",
+                    reply_markup=main_menu_keyboard(user_lang))
+        except Exception as e:
+            logger.error(f"Ошибка при редактировании задания: {e}")
+            await query.edit_message_text(
+                f"⛔ Ошибка при редактировании: {str(e)}" if user_lang == "ru" else f"⛔ Error editing: {str(e)}",
+                reply_markup=main_menu_keyboard(user_lang))
+    
+    return ConversationHandler.END
 
 async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -656,14 +728,21 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
                 group
             ]
             
-            sheet.append_row(row_data)
+            # Если это редактирование существующей строки
+            if "row_idx" in task_data:
+                sheet.update(f"A{task_data['row_idx']}:G{task_data['row_idx']}", [row_data])
+                action_text = "изменено"
+            else:  # Иначе это новое задание
+                sheet.append_row(row_data)
+                action_text = "добавлено"
+            
             context.user_data.clear()
             
             # Обновляем напоминания для всех пользователей группы
             await refresh_reminders_for_group(context.application.job_queue, group)
             
             await query.edit_message_text(
-                "✅ Задание успешно добавлено!" if user_lang == "ru" else "✅ Task added successfully!",
+                f"✅ Задание успешно {action_text}!" if user_lang == "ru" else f"✅ Task {action_text.replace('изменено', 'updated').replace('добавлено', 'added')} successfully!",
                 reply_markup=main_menu_keyboard(user_lang))
         except Exception as e:
             logger.error(f"Ошибка при сохранении задания: {e}")
@@ -674,7 +753,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif query.data == "cancel_task":
         context.user_data.clear()
         await query.edit_message_text(
-            "🚫 Добавление задания отменено." if user_lang == "ru" else "🚫 Task addition canceled.",
+            "🚫 Добавление/редактирование задания отменено." if user_lang == "ru" else "🚫 Task addition/editing canceled.",
             reply_markup=main_menu_keyboard(user_lang))
         return ConversationHandler.END
     
@@ -929,10 +1008,6 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
         if tasks_for_reminder:
             tasks_for_reminder.sort(key=lambda x: x['days_left'])
             
-            # Тестовая отправка
-#            logger.info("Отправка тестового напоминания...")
- #           await send_daily_reminder(None, user_id, tasks_for_reminder)
-            
             # Планирование
             reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
             next_reminder = datetime.combine(datetime.now().date(), reminder_time)
@@ -1111,6 +1186,16 @@ def main():
         fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
     )
 
+    # Обработчик для редактирования заданий
+    edit_task_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(callback_edit_task, pattern="edit_task")],
+        states={
+            EDITING_TASK: [CallbackQueryHandler(handle_task_editing)],
+            WAITING_FOR_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input)],
+        },
+        fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
+    )
+
     # Обработчик для удаления заданий
     delete_task_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(callback_delete_task, pattern="delete_task")],
@@ -1131,14 +1216,20 @@ def main():
     )
 
     application.add_handler(add_task_handler)
+    application.add_handler(edit_task_handler)
     application.add_handler(delete_task_handler)
     application.add_handler(feedback_handler)
     
     # Настраиваем периодическую проверку напоминаний
     job_queue = application.job_queue
     if job_queue:
+        job_queue.run_repeating(
+            check_reminders_now,
+            interval=REMINDER_CHECK_INTERVAL,
+            first=0
+        )
     
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
