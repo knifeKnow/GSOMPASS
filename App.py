@@ -267,7 +267,6 @@ async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delet
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
                     f"🗓 Дата: {row[4]} | Время: {time_display}\n"
-                    f"🏷 Формат: {row[2]}\n"
                     f"📖 Тип: {row[7]}\n"
                     f"💯 Баллы курса: {row[3]}\n"
                     + (f"📝 Детали: {row[8]}\n" if row[8] else "")
@@ -275,7 +274,6 @@ async def show_tasks_for_group(query, group, show_edit_buttons=False, show_delet
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
                     f"🗓 Date: {row[4]} | Time: {time_display}\n"
-                    f"🏷 Format: {row[2]}\n"
                     f"📖 Type: {row[7]}\n"
                     f"💯 Course Points: {row[3]}\n"
                     + (f"📝 Details: {row[8]}\n" if row[8] else "")
@@ -1146,14 +1144,12 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
             message += (
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
                 f"🗓 {task['date']} | ⏰ {time_display}\n"
-                f"🏷 Формат: {task['format']}\n"
                 f"📖 Тип: {task.get('book_type', '')}\n"
                 f"💯 Баллы курса: {task['max_points']}\n"
                 + (f"📝 Детали: {task.get('details', '')}\n\n" if task.get('details') else "\n")
                 if user_lang == "ru" else
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
                 f"🗓 {task['date']} | ⏰ {time_display}\n"
-                f"🏷 Format: {task['format']}\n"
                 f"📖 Type: {task.get('book_type', '')}\n"
                 f"💯 Course Points: {task['max_points']}\n"
                 + (f"📝 Details: {task.get('details', '')}\n\n" if task.get('details') else "\n")
