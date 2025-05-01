@@ -42,7 +42,7 @@ sheets = {
 
 ALLOWED_USERS = {
     1042880639: "B-11",  # Mariia   1062616885   1042880639
-    797969195: "B-12"    # Poka chto Ya    1062616885   797969195
+    1062616885: "B-12"    # Poka chto Ya    1062616885   797969195
 }
 
 # Стейты
@@ -60,7 +60,7 @@ LANGUAGES = {
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 # Настройки напоминаний
-REMINDER_TIME = "09:00"  # МЕНЯЙТЕ ЭТО ЗНАЧЕНИЕ НА НУЖНОЕ ВРЕМЯ (формат "ЧЧ:ММ")
+REMINDER_TIME = "09:00"  # Напоминания будут приходить строго в 09:00 по МСК
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))  # Напоминать за 10,9,8,...,0 дней
 REMINDER_CHECK_INTERVAL = 60  # Проверять каждые 60 секунд
 
@@ -264,10 +264,12 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 response += (
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
-                    f"🗓 Дата: {row[4]} | Время: {time_display} | Баллы: {row[3]}\n" if user_lang == "ru" else 
+                    f"🗓 Дата: {row[4]} | Время: {time_display} | Баллы: {row[3]}\n"
+                    f"📖 Тип: {row[7] if len(row) > 7 else 'N/A'} | Детали: {row[8] if len(row) > 8 else 'N/A'}\n" if user_lang == "ru" else 
                     f"\n🔹 *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
                     f"🗓 Date: {row[4]} | Time: {time_display} | Points: {row[3]}\n"
+                    f"📖 Type: {row[7] if len(row) > 7 else 'N/A'} | Details: {row[8] if len(row) > 8 else 'N/A'}\n"
                 )
                 
                 if show_delete_buttons:
@@ -389,6 +391,10 @@ def generate_edit_task_keyboard(user_lang="ru"):
             InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
         ],
         [
+            InlineKeyboardButton("📖 Book Type" if user_lang == "ru" else "📖 Book Type", callback_data="edit_book_type"),
+            InlineKeyboardButton("📝 Детали" if user_lang == "ru" else "📝 Details", callback_data="edit_details")
+        ],
+        [
             InlineKeyboardButton("✅ Сохранить" if user_lang == "ru" else "✅ Save", callback_data="save_task"),
             InlineKeyboardButton("❌ Отменить" if user_lang == "ru" else "❌ Cancel", callback_data="cancel_task")
         ]
@@ -467,6 +473,23 @@ def generate_format_keyboard(user_lang="ru"):
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
+def generate_book_type_keyboard(user_lang="ru"):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Open-book", callback_data="Open-book"),
+         InlineKeyboardButton("Closed-book", callback_data="Closed-book")],
+        [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
+    ])
+
+def generate_details_keyboard(user_lang="ru"):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Calculators allowed", callback_data="details_Calculators allowed")],
+        [InlineKeyboardButton("Notes allowed", callback_data="details_Notes allowed")],
+        [InlineKeyboardButton("Books allowed", callback_data="details_Books allowed")],
+        [InlineKeyboardButton("Phones allowed", callback_data="details_Phones allowed")],
+        [InlineKeyboardButton("Other", callback_data="other_details")],
+        [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
+    ])
+
 async def format_task_message(context):
     task_data = context.user_data.get("task_data", {})
     user_lang = get_user_language(context._user_id) if hasattr(context, '_user_id') else "ru"
@@ -484,7 +507,9 @@ async def format_task_message(context):
         time_display = "By schedule" if user_lang == "en" else "По расписанию"
     message += f"🔹 <b>Время:</b> {time_display}\n"
     
-    message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_lang == 'ru' else 'not selected')}\n\n"
+    message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_lang == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>Book Type:</b> {task_data.get('book_type', 'не выбран' if user_lang == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>Детали:</b> {task_data.get('details', 'не выбраны' if user_lang == 'ru' else 'not selected')}\n\n"
     message += "Выберите параметр для изменения или сохраните задание:" if user_lang == "ru" else "Select a parameter to change or save the task:"
     return message
 
@@ -507,7 +532,9 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "max_points": "не выбрано" if user_lang == "ru" else "not selected",
         "date": "не выбрана" if user_lang == "ru" else "not selected",
         "time": "не выбрано" if user_lang == "ru" else "not selected",
-        "format": "не выбран" if user_lang == "ru" else "not selected"
+        "format": "не выбран" if user_lang == "ru" else "not selected",
+        "book_type": "не выбран" if user_lang == "ru" else "not selected",
+        "details": "не выбраны" if user_lang == "ru" else "not selected"
     }
 
     message = await format_task_message(context)
@@ -552,6 +579,16 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(
             "📍 Выберите формат:" if user_lang == "ru" else "📍 Select format:",
             reply_markup=generate_format_keyboard(user_lang)
+        )
+    elif query.data == "edit_book_type":
+        await query.edit_message_text(
+            "📖 Выберите тип задания (open/closed book):" if user_lang == "ru" else "📖 Select book type (open/closed book):",
+            reply_markup=generate_book_type_keyboard(user_lang)
+        )
+    elif query.data == "edit_details":
+        await query.edit_message_text(
+            "📝 Выберите разрешенные материалы:" if user_lang == "ru" else "📝 Select allowed materials:",
+            reply_markup=generate_details_keyboard(user_lang)
         )
     elif query.data == "back_to_editing":
         message = await format_task_message(context)
@@ -612,6 +649,23 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=generate_edit_task_keyboard(user_lang),
             parse_mode='HTML'
         )
+    elif query.data in ["Open-book", "Closed-book"]:
+        context.user_data["task_data"]["book_type"] = query.data
+        message = await format_task_message(context)
+        await query.edit_message_text(
+            message,
+            reply_markup=generate_edit_task_keyboard(user_lang),
+            parse_mode='HTML'
+        )
+    elif query.data.startswith("details_"):
+        details_value = query.data[8:]
+        context.user_data["task_data"]["details"] = details_value
+        message = await format_task_message(context)
+        await query.edit_message_text(
+            message,
+            reply_markup=generate_edit_task_keyboard(user_lang),
+            parse_mode='HTML'
+        )
     elif query.data == "other_subject":
         await query.edit_message_text("✍️ Введите название предмета:" if user_lang == "ru" else "✍️ Enter subject name:")
         context.user_data["waiting_for"] = "subject"
@@ -628,15 +682,17 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text("🗓️ Введите дату в формате ДД.ММ (например, 15.12):" if user_lang == "ru" else "🗓️ Enter date in DD.MM format (e.g., 15.12):")
         context.user_data["waiting_for"] = "date"
         return WAITING_FOR_INPUT
+    elif query.data == "other_details":
+        await query.edit_message_text("📝 Введите детали (разрешенные материалы):" if user_lang == "ru" else "📝 Enter details (allowed materials):")
+        context.user_data["waiting_for"] = "details"
+        return WAITING_FOR_INPUT
     elif query.data == "save_task":
         task_data = context.user_data.get("task_data", {})
-        if (task_data["subject"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["task_type"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["max_points"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["date"] == ("не выбрана" if user_lang == "ru" else "not selected") or 
-            task_data["time"] == ("не выбрано" if user_lang == "ru" else "not selected") or 
-            task_data["format"] == ("не выбран" if user_lang == "ru" else "not selected")):
-            
+        required_fields = ["subject", "task_type", "max_points", "date", "time", "format", "book_type", "details"]
+        missing_fields = [field for field in required_fields 
+                        if task_data.get(field) in ["не выбрано", "not selected", "не выбрана", "не выбран", "не выбраны"]]
+        
+        if missing_fields:
             await query.answer(
                 "⚠️ Заполните все поля перед сохранением!" if user_lang == "ru" else "⚠️ Fill all fields before saving!",
                 show_alert=True)
@@ -653,7 +709,9 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
                 task_data["max_points"],
                 task_data["date"],
                 task_data["time"],
-                group
+                group,
+                task_data["book_type"],
+                task_data["details"]
             ]
             
             sheet.append_row(row_data)
@@ -706,6 +764,8 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ Неверный формат даты. Введите дату в формате ДД.ММ (например, 15.12)" if user_lang == "ru" else 
                 "⚠️ Wrong date format. Enter date in DD.MM format (e.g., 15.12)")
             return WAITING_FOR_INPUT
+    elif waiting_for == "details":
+        context.user_data["task_data"]["details"] = user_input
     
     del context.user_data["waiting_for"]
     
@@ -780,7 +840,7 @@ async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAU
         
         keyboard = [
             [InlineKeyboardButton(
-                "🔔 Reminders: On" if reminders_enabled else "🔔 Reminders: Off",
+                "🔔 Напоминания: Вкл" if reminders_enabled else "🔔 Напоминания: Выкл",
                 callback_data="toggle_reminders")],
             [InlineKeyboardButton(
                 "↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu",
@@ -844,7 +904,9 @@ async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'time': "10:00",
             'days_left': 1,
             'max_points': "10",
-            'format': "Online"
+            'format': "Online",
+            'book_type': "Open-book",
+            'details': "Calculators allowed"
         }
         
         context.job_queue.run_once(
@@ -919,7 +981,9 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
                             'time': row[5],
                             'days_left': days_left,
                             'max_points': row[3],
-                            'format': row[2]
+                            'format': row[2],
+                            'book_type': row[7] if len(row) > 7 else 'N/A',
+                            'details': row[8] if len(row) > 8 else 'N/A'
                         })
                 except Exception as e:
                     logger.error(f"Ошибка обработки строки {row}: {e}")
@@ -928,10 +992,6 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
         
         if tasks_for_reminder:
             tasks_for_reminder.sort(key=lambda x: x['days_left'])
-            
-            # Тестовая отправка
-#            logger.info("Отправка тестового напоминания...")
- #           await send_daily_reminder(None, user_id, tasks_for_reminder)
             
             # Планирование
             reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
@@ -993,9 +1053,11 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
             time_display = "По расписанию" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
             message += (
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n" if user_lang == "ru" else
+                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n"
+                f"📖 Тип: {task['book_type']} | Детали: {task['details']}\n\n" if user_lang == "ru" else
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n"
+                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n"
+                f"📖 Type: {task['book_type']} | Details: {task['details']}\n\n"
             )
     
     try:
@@ -1137,8 +1199,26 @@ def main():
     # Настраиваем периодическую проверку напоминаний
     job_queue = application.job_queue
     if job_queue:
+        # Запускаем проверку напоминаний при старте
+        job_queue.run_once(check_reminders_now, when=0)
+        
+        # Планируем ежедневную проверку в 09:00 по МСК
+        reminder_time = datetime.strptime(REMINDER_TIME, "%H:%M").time()
+        next_reminder = datetime.combine(datetime.now().date(), reminder_time)
+        
+        if datetime.now().time() > reminder_time:
+            next_reminder += timedelta(days=1)
+        
+        next_reminder = MOSCOW_TZ.localize(next_reminder)
+        
+        job_queue.run_repeating(
+            check_reminders_now,
+            interval=timedelta(days=1),
+            first=next_reminder,
+            name="daily_reminder_check"
+        )
     
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
