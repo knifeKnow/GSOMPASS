@@ -86,8 +86,9 @@ def main_menu_keyboard(user_lang="ru"):
             InlineKeyboardButton("➕ Добавить задание" if user_lang == "ru" else "➕ Add task", callback_data="add_task"),
             InlineKeyboardButton("🗑️ Удалить задание" if user_lang == "ru" else "🗑️ Delete task", callback_data="delete_task")
         ],
-        [InlineKeyboardButton("👥 Выбор группы" if user_lang == "ru" else "👥 Select group", callback_data="select_group")],
-        [InlineKeyboardButton("⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", callback_data="help")],
+        [   InlineKeyboardButton("👥 Выбор группы" if user_lang == "ru" else "👥 Select group", callback_data="select_group"),
+            InlineKeyboardButton("⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", callback_data="help")
+        ],
         [InlineKeyboardButton("↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", callback_data="back_to_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
