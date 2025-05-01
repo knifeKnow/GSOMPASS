@@ -62,7 +62,7 @@ MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 # Настройки напоминаний
 REMINDER_TIME = "09:00"  # Напоминания будут приходить строго в 09:00 по МСК
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))  # Напоминать за 10,9,8,...,0 дней
-REMINDER_CHECK_INTERVAL = 60  # Проверять каждые 60 секунд
+REMINDER_CHECK_INTERVAL = 360  # Проверять каждые 360 секунд
 
 def convert_to_datetime(time_str, date_str):
     current_year = datetime.now().year
