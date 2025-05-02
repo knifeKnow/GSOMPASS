@@ -447,12 +447,15 @@ def generate_edit_task_keyboard(user_lang="ru"):
             InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
         ],
         [
-            # Первые 25% - Open-book
-            InlineKeyboardButton("📖", callback_data="open-book"),
-            # Вторые 25% - Closed-book
-            InlineKeyboardButton("📕", callback_data="closed-book"),
-            # Оставшиеся 50% - Details
-            InlineKeyboardButton("📝 Детали \u2007  " if user_lang == "ru" else "📝 Details \u2007  ", callback_data="edit_details")
+            # Первые 25% - Open-book (иконка + невидимый символ для баланса)
+            InlineKeyboardButton("📖\u2007", callback_data="open-book"),
+            # Вторые 25% - Closed-book (иконка + невидимый символ)
+            InlineKeyboardButton("📕\u2007", callback_data="closed-book"),
+            # Оставшиеся 50% - Details (длинный текст + невидимые символы)
+            InlineKeyboardButton(
+                "📝 Детали \u2007\u2007\u2007\u2007" if user_lang == "ru" else "📝 Details \u2007\u2007\u2007\u2007", 
+                callback_data="edit_details"
+            )
         ],
         [
             InlineKeyboardButton("✅ Сохранить" if user_lang == "ru" else "✅ Save", callback_data="save_task"),
