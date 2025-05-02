@@ -185,7 +185,10 @@ def update_user_data(user_id, field, value):
         if user_row_idx is not None:
             col_idx = {"group": 2, "reminders_enabled": 3, "language": 4, "feedback": 5}.get(field, 2)
             gsh.sheets["Users"].update_cell(user_row_idx + 1, col_idx, str(value))
-            gsh.get_sheet_data.cache_clear()  # Очищаем кэш
+            
+            # Очищаем кэш только при изменении группы
+            if field == "group":
+                gsh.get_sheet_data.cache_clear()  # Очищаем кэш
             return True
     except Exception as e:
         logger.error(f"Error updating user data: {e}")
@@ -398,6 +401,9 @@ async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
     group = query.data.replace("set_group_", "")
+    
+    # Принудительно обновляем данные перед изменением группы
+    gsh.get_sheet_data("Users", force_refresh=True)
     
     if update_user_data(user_id, "group", group):
         user_data = get_user_data(user_id)
