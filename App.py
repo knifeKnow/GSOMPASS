@@ -297,7 +297,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         tasks = []
 
         for idx, row in enumerate(data, start=2):
-            if len(row) >= 7 and row[6] == group:
+            if len(row) >= 9 and row[6] == group:  # Теперь проверяем 9 столбцов
                 try:
                     deadline = convert_to_datetime(row[5], row[4])
                     if deadline:
@@ -314,22 +314,20 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 count += 1
                 time_display = "By schedule" if row[5] in ["23:59", "By schedule", "По расписанию"] else row[5]
                 
-                # Добавляем иконку типа книги
-                book_icon = "📖" if len(row) > 7 and row[7] == "open-book" else "📕"
+                # Используем row[7] для типа книги (должно быть "Open-book" или "Closed-book")
+                book_icon = "📖" if len(row) > 7 and row[7].strip().lower() == "open-book" else "📗"
                 
                 # Формируем строку с деталями
                 details = ""
                 if len(row) > 8 and row[8]:
-                    details = f" | {row[8]}"
+                    details = f"\nℹ️ {row[8]}"
                 
                 response += (
-                    f"\n📚 *{row[0]}* — {row[1]} {'📖' if row[5] == 'Open-book' else '📗'} ({row[2]})\n"
-                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} баллов\n"
-                    f"{details if details else ''}"
+                    f"\n📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
+                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} баллов{details}"
                     if user_data["language"] == "ru" else
-                    f"\n📚 *{row[0]}* — {row[1]} {'📖' if row[5] == 'Open-book' else '📗'} ({row[2]})\n"
-                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} points\n"
-                    f"{details if details else ''}"
+                    f"\n📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
+                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} points{details}"
                 )
                 
                 if show_delete_buttons:
