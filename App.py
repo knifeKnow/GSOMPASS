@@ -563,7 +563,7 @@ async def format_task_message(context):
     message += f"🔹 <b>Время:</b> {time_display}\n"
     
     message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Тип книги:</b> {task_data.get('book_type', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>...бук:</b> {task_data.get('book_type', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Детали:</b> {task_data.get('details', 'не выбраны' if user_data['language'] == 'ru' else 'not selected')}\n\n"
     message += "Выберите параметр для изменения или сохраните задание:" if user_data['language'] == "ru" else "Select a parameter to change or save the task:"
     return message
@@ -588,7 +588,7 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "date": "не выбрана" if user_data["language"] == "ru" else "not selected",
         "time": "не выбрано" if user_data["language"] == "ru" else "not selected",
         "format": "не выбран" if user_data["language"] == "ru" else "not selected",
-        "book_type": "не выбран" if user_data["language"] == "ru" else "not selected",
+        "...book": "не выбран" if user_data["language"] == "ru" else "not selected",
         "details": "не выбраны" if user_data["language"] == "ru" else "not selected"
     }
 
