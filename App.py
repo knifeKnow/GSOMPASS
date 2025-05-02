@@ -85,7 +85,7 @@ class GoogleSheetsHelper:
         current_time = time.time()
         if not force_refresh and sheet_name in self.cached_data:
             last_fetch = self.last_fetch_time.get(sheet_name, 0)
-            if current_time - last_fetch < 300:  # 5 минут кэша
+            if current_time - last_fetch < 30:  # 0,5 минут кэша
                 return self.cached_data[sheet_name]
 
         retries = 0
@@ -197,12 +197,12 @@ def update_user_data(user_id, field, value):
 def main_menu_keyboard(user_lang="ru"):
     """Клавиатура главного меню"""
     buttons = [
-        ["📋 Посмотреть задания" if user_lang == "ru" else "📋 View tasks", "get_data"],
-        ["➕ Добавить задание" if user_lang == "ru" else "➕ Add task", "add_task"],
-        ["🗑️ Удалить задание" if user_lang == "ru" else "🗑️ Delete task", "delete_task"],
-        ["👥 Выбор группы" if user_lang == "ru" else "👥 Select group", "select_group"],
+        ["📚 Посмотреть задания" if user_lang == "ru" else "📚 View tasks", "get_data"],
+        ["⚡ Добавить задание" if user_lang == "ru" else "⚡ Add task", "add_task"],
+        ["💣 Удалить задание" if user_lang == "ru" else "💣 Delete task", "delete_task"],
+        ["🏫 Выбор группы" if user_lang == "ru" else "🏫 Select group", "select_group"],
         ["⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", "help"],
-        ["↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", "back_to_menu"]
+        ["🏠 Назад в меню" if user_lang == "ru" else "🏠 Back to menu", "back_to_menu"]
     ]
     
     # Группируем кнопки по 2 в ряд, кроме первой и последней
