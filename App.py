@@ -323,11 +323,11 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edi
                 
                 response += (
                     f"\n📚 *{row[0]}* – {row[1]} ({row[2]})\n"
-                    f"{row[5] if len(row) > 5 else 'Не указано'} | 💯 Баллы: {row[3]}\n"
+                    f"💯 Баллы курса: {row[3]} | {'📖 Open-book' if row[5] == 'Open-book' else '📗 Closed-book'}\n"
                     f"📅 {row[4]} | 🕒 {time_display}\n{details}"
                     if user_data["language"] == "ru" else
                     f"\n📚 *{row[0]}* – {row[1]} ({row[2]})\n"
-                    f"{row[5] if len(row) > 5 else 'Not specified'} | 💯 Points: {row[3]}\n"
+                    f"💯 Course points: {row[3]} | {'📖 Open-book' if row[5] == 'Open-book' else '📗 Closed-book'}\n"
                     f"📅 {row[4]} | 🕒 {time_display}\n{details}"
                 )
                 
