@@ -292,7 +292,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         data = gsh.get_sheet_data(group)[1:]  # Пропускаем заголовок
         
         user_data = get_user_data(query.from_user.id)
-        response = f"📌 Задания для группы {group}:\n" if user_data["language"] == "ru" else f"📌 Tasks for group {group}:\n"
+        response = f"📌 Задания для группы {group}:\n\n" if user_data["language"] == "ru" else f"📌 Tasks for group {group}:\n\n"
         count = 0
         tasks = []
 
@@ -322,16 +322,16 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 if len(row) > 8 and row[8]:
                     details = f"\nℹ️ {row[8]}"
                 
-                # Добавляем пустую строку между заданиями
+                # Добавляем задание с отступом сверху (кроме первого)
                 if count > 1:
                     response += "\n"
                 
                 response += (
                     f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
-                    f"📅{row[4]} | 🕒{time_display} | {row[3]} баллов курса{details}"
+                    f"📅 {row[4]} | 🕒 {time_display} | 🧩 *{row[3]}* баллов курса{details}"
                     if user_data["language"] == "ru" else
                     f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
-                    f"📅{row[4]} | 🕒{time_display} | {row[3]} course points{details}"
+                    f"📅 {row[4]} | 🕒 {time_display} | 🧩 *{row[3]}* course points{details}"
                 )
                 
                 if show_delete_buttons:
