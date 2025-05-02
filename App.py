@@ -292,12 +292,12 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         data = gsh.get_sheet_data(group)[1:]  # Пропускаем заголовок
         
         user_data = get_user_data(query.from_user.id)
-        response = f"📌 Задания для группы {group}:\n\n" if user_data["language"] == "ru" else f"📌 Tasks for group {group}:\n\n"
+        response = f"📌 Задания для группы {group}:\n" if user_data["language"] == "ru" else f"📌 Tasks for group {group}:\n"
         count = 0
         tasks = []
 
         for idx, row in enumerate(data, start=2):
-            if len(row) >= 9 and row[6] == group:  # Теперь проверяем 9 столбцов
+            if len(row) >= 7 and row[6] == group:
                 try:
                     deadline = convert_to_datetime(row[5], row[4])
                     if deadline:
@@ -314,24 +314,22 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 count += 1
                 time_display = "By schedule" if row[5] in ["23:59", "By schedule", "По расписанию"] else row[5]
                 
-                # Используем row[7] для типа книги (должно быть "Open-book" или "Closed-book")
-                book_icon = "📖" if len(row) > 7 and row[7].strip().lower() == "open-book" else "📗"
+                # Добавляем иконку типа книги
+                book_icon = "📖" if len(row) > 7 and row[7] == "open-book" else "📕"
                 
                 # Формируем строку с деталями
                 details = ""
                 if len(row) > 8 and row[8]:
-                    details = f"\nℹ️ {row[8]}"
-                
-                # Добавляем задание с отступом сверху (кроме первого)
-                if count > 1:
-                    response += "\n"
+                    details = f" | {row[8]}"
                 
                 response += (
-                    f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
-                    f"📅 {row[4]} | 🕒 {time_display} | 🧩 *{row[3]}* баллов курса{details}"
+                    f"📚 *{row[0]}* — {row[1]} {book_icon} | {row[2]}\n"
+                    f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* баллов курса\n" 
+                    f"{details}\n"
                     if user_data["language"] == "ru" else
-                    f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
-                    f"📅 {row[4]} | 🕒 {time_display} | 🧩 *{row[3]}* course points{details}"
+                    f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"                   
+                    f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* course points\n"
+                    f"{details}\n"
                 )
                 
                 if show_delete_buttons:
