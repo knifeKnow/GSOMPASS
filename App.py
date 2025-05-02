@@ -44,10 +44,10 @@ LANGUAGES = {"ru": "Русский", "en": "English"}
 # Доступные группы
 ALLOWED_GROUPS = ["B-11", "B-12"]
 
-# Разрешенные пользователи 
+# Разрешенные пользователи
 ALLOWED_USERS = {
-    1042880639: "B-11",        # 1062616885   1042880639
-    1062616885: "B-12"          # 1062616885   797969195
+    1042880639: "B-11",
+    797969195: "B-12"
 }
 
 class GoogleSheetsHelper:
@@ -286,7 +286,7 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• 🔒 Only trusted users can make changes",
         reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edit_buttons=False):
+async def show_tasks_for_group(query, group, show_delete_buttons=False):
     """Показать задания для группы"""
     try:
         data = gsh.get_sheet_data(group)[1:]  # Пропускаем заголовок
@@ -297,7 +297,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edi
         tasks = []
 
         for idx, row in enumerate(data, start=2):
-            if len(row) >= 9 and row[6] == group:  # Теперь проверяем 9 столбцов
+            if len(row) >= 7 and row[6] == group:
                 try:
                     deadline = convert_to_datetime(row[5], row[4])
                     if deadline:
@@ -313,20 +313,14 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edi
             if deadline > datetime.now(MOSCOW_TZ):
                 count += 1
                 time_display = "By schedule" if row[5] in ["23:59", "By schedule", "По расписанию"] else row[5]
-                
-                # Добавляем информацию о Book Type и Details, если они есть
-                details = ""
-                if len(row) >= 9 and row[8] and row[8].strip():  # Details (только если не пустые)
-                    details += f"\nℹ️ Details: {row[8]}"
-                
                 response += (
-                    f"\n📚 *{row[0]}* – {row[1]} ({row[2]})\n"
-                    f"💯 Баллы курса: {row[3]} | {'📖 Open-book' if row[5] == 'Open-book' else '📗 Closed-book'}\n"
-                    f"📅 {row[4]} | 🕒 {time_display}\n{details}"
-                    if user_data["language"] == "ru" else
-                    f"\n📚 *{row[0]}* – {row[1]} ({row[2]})\n"
-                    f"💯 Course points: {row[3]} | {'📖 Open-book' if row[5] == 'Open-book' else '📗 Closed-book'}\n"
-                    f"📅 {row[4]} | 🕒 {time_display}\n{details}"
+                    f"\n🔹 *{row[0]}* — {row[1]} "
+                    f"({row[2]})\n"
+                    f"🗓 Дата: {row[4]} | Время: {time_display} | Баллы: {row[3]}\n" 
+                    if user_data["language"] == "ru" else 
+                    f"\n🔹 *{row[0]}* — {row[1]} "
+                    f"({row[2]})\n"
+                    f"🗓 Date: {row[4]} | Time: {time_display} | Points: {row[3]}\n"
                 )
                 
                 if show_delete_buttons:
@@ -336,18 +330,11 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edi
                         f"🗑️ Delete: {row[0]} ({row[4]})",
                         callback_data=f"delete_{group}_{row_idx}"
                     )])
-                elif show_edit_buttons:
-                    keyboard.append([InlineKeyboardButton(
-                        f"✏️ Редактировать: {row[0]} ({row[4]})" 
-                        if user_data["language"] == "ru" else 
-                        f"✏️ Edit: {row[0]} ({row[4]})",
-                        callback_data=f"edit_{group}_{row_idx}"
-                    )])
 
         if count == 0:
             response = "ℹ️ Пока нет заданий для вашей группы." if user_data["language"] == "ru" else "ℹ️ No tasks for your group yet."
 
-        if show_delete_buttons or show_edit_buttons:
+        if show_delete_buttons:
             keyboard.append([InlineKeyboardButton(
                 "↩️ Назад" if user_data["language"] == "ru" else "↩️ Back", 
                 callback_data="back_to_menu")])
@@ -982,20 +969,12 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
         
         for task in tasks_by_days[days_left]:
             time_display = "По расписанию" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
-            
-            # Добавляем информацию о Book Type и Details, если они есть
-            details = ""
-            if task.get('book_type'):
-                details += f"\n📖 <b>Book Type:</b> {task['book_type']}"
-            if task.get('details') and task['details'].strip():  # Только если детали не пустые
-                details += f"\nℹ️ <b>Details:</b> {task['details']}"
-            
             message += (
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}{details}\n\n" 
+                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n" 
                 if user_data["language"] == "ru" else
                 f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}{details}\n\n"
+                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n"
             )
     
     try:
