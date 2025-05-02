@@ -46,8 +46,8 @@ ALLOWED_GROUPS = ["B-11", "B-12"]
 
 # Разрешенные пользователи
 ALLOWED_USERS = {
-    1042880639: "B-11",
-    797969195: "B-12"
+    1042880639: "B-11",   #  1062616885   1042880639
+    1062616885: "B-12"     #  1062616885   797969195
 }
 
 class GoogleSheetsHelper:
@@ -313,14 +313,23 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
             if deadline > datetime.now(MOSCOW_TZ):
                 count += 1
                 time_display = "By schedule" if row[5] in ["23:59", "By schedule", "По расписанию"] else row[5]
+                
+                # Добавляем иконку типа книги
+                book_icon = "📖" if len(row) > 7 and row[7] == "open-book" else "📕"
+                
+                # Формируем строку с деталями
+                details = ""
+                if len(row) > 8 and row[8]:
+                    details = f" | {row[8]}"
+                
                 response += (
-                    f"\n🔹 *{row[0]}* — {row[1]} "
+                    f"\n{book_icon} *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
-                    f"🗓 Дата: {row[4]} | Время: {time_display} | Баллы: {row[3]}\n" 
+                    f"{row[4]} | {time_display} | {row[3]} баллов{details}\n" 
                     if user_data["language"] == "ru" else 
-                    f"\n🔹 *{row[0]}* — {row[1]} "
+                    f"\n{book_icon} *{row[0]}* — {row[1]} "
                     f"({row[2]})\n"
-                    f"🗓 Date: {row[4]} | Time: {time_display} | Points: {row[3]}\n"
+                    f"{row[4]} | {time_display} | {row[3]} points{details}\n"
                 )
                 
                 if show_delete_buttons:
@@ -438,6 +447,11 @@ def generate_edit_task_keyboard(user_lang="ru"):
             InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
         ],
         [
+            InlineKeyboardButton("📖 Open-book", callback_data="open-book"),
+            InlineKeyboardButton("📕 Closed-book", callback_data="closed-book"),
+            InlineKeyboardButton("📝 Детали" if user_lang == "ru" else "📝 Details", callback_data="edit_details")
+        ],
+        [
             InlineKeyboardButton("✅ Сохранить" if user_lang == "ru" else "✅ Save", callback_data="save_task"),
             InlineKeyboardButton("❌ Отменить" if user_lang == "ru" else "❌ Cancel", callback_data="cancel_task")
         ]
@@ -516,6 +530,15 @@ def generate_format_keyboard(user_lang="ru"):
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
+def generate_details_keyboard(user_lang="ru"):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Calculators allowed", callback_data="Calculators allowed")],
+        [InlineKeyboardButton("Notes allowed", callback_data="Notes allowed")],
+        [InlineKeyboardButton("Phones allowed", callback_data="Phones allowed")],
+        [InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_details")],
+        [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
+    ])
+
 async def format_task_message(context):
     task_data = context.user_data.get("task_data", {})
     user_data = get_user_data(context._user_id) if hasattr(context, '_user_id') else {"language": "ru"}
@@ -533,7 +556,9 @@ async def format_task_message(context):
         time_display = "By schedule" if user_data['language'] == "en" else "По расписанию"
     message += f"🔹 <b>Время:</b> {time_display}\n"
     
-    message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n\n"
+    message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>Тип книги:</b> {task_data.get('book_type', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>Детали:</b> {task_data.get('details', 'не выбраны' if user_data['language'] == 'ru' else 'not selected')}\n\n"
     message += "Выберите параметр для изменения или сохраните задание:" if user_data['language'] == "ru" else "Select a parameter to change or save the task:"
     return message
 
@@ -556,7 +581,9 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "max_points": "не выбрано" if user_data["language"] == "ru" else "not selected",
         "date": "не выбрана" if user_data["language"] == "ru" else "not selected",
         "time": "не выбрано" if user_data["language"] == "ru" else "not selected",
-        "format": "не выбран" if user_data["language"] == "ru" else "not selected"
+        "format": "не выбран" if user_data["language"] == "ru" else "not selected",
+        "book_type": "не выбран" if user_data["language"] == "ru" else "not selected",
+        "details": "не выбраны" if user_data["language"] == "ru" else "not selected"
     }
 
     message = await format_task_message(context)
@@ -602,6 +629,11 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             "📍 Выберите формат:" if user_data["language"] == "ru" else "📍 Select format:",
             reply_markup=generate_format_keyboard(user_data["language"])
         )
+    elif query.data == "edit_details":
+        await query.edit_message_text(
+            "📝 Выберите детали:" if user_data["language"] == "ru" else "📝 Select details:",
+            reply_markup=generate_details_keyboard(user_data["language"])
+        )
     elif query.data == "back_to_editing":
         message = await format_task_message(context)
         await query.edit_message_text(
@@ -609,6 +641,26 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=generate_edit_task_keyboard(user_data["language"]),
             parse_mode='HTML'
         )
+    elif query.data in ["open-book", "closed-book"]:
+        context.user_data["task_data"]["book_type"] = query.data
+        message = await format_task_message(context)
+        await query.edit_message_text(
+            message,
+            reply_markup=generate_edit_task_keyboard(user_data["language"]),
+            parse_mode='HTML'
+        )
+    elif query.data in ["Calculators allowed", "Notes allowed", "Phones allowed"]:
+        context.user_data["task_data"]["details"] = query.data
+        message = await format_task_message(context)
+        await query.edit_message_text(
+            message,
+            reply_markup=generate_edit_task_keyboard(user_data["language"]),
+            parse_mode='HTML'
+        )
+    elif query.data == "other_details":
+        await query.edit_message_text("📝 Введите детали:" if user_data["language"] == "ru" else "📝 Enter details:")
+        context.user_data["waiting_for"] = "details"
+        return WAITING_FOR_INPUT
     elif query.data.startswith(("Maths", "Management", "DigTools", "FinAcc", "Microeconomics")):
         context.user_data["task_data"]["subject"] = query.data
         message = await format_task_message(context)
@@ -684,10 +736,11 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             task_data["max_points"] == ("не выбрано" if user_data["language"] == "ru" else "not selected") or 
             task_data["date"] == ("не выбрана" if user_data["language"] == "ru" else "not selected") or 
             task_data["time"] == ("не выбрано" if user_data["language"] == "ru" else "not selected") or 
-            task_data["format"] == ("не выбран" if user_data["language"] == "ru" else "not selected")):
+            task_data["format"] == ("не выбран" if user_data["language"] == "ru" else "not selected") or 
+            task_data["book_type"] == ("не выбран" if user_data["language"] == "ru" else "not selected")):
             
             await query.answer(
-                "⚠️ Заполните все поля перед сохранением!" if user_data["language"] == "ru" else "⚠️ Fill all fields before saving!",
+                "⚠️ Заполните все обязательные поля перед сохранением!" if user_data["language"] == "ru" else "⚠️ Fill all required fields before saving!",
                 show_alert=True)
             return EDITING_TASK
         
@@ -701,7 +754,9 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
                 task_data["max_points"],
                 task_data["date"],
                 task_data["time"],
-                group
+                group,
+                task_data["book_type"],
+                task_data.get("details", "")
             ]
             
             gsh.update_sheet(group, row_data)
@@ -754,6 +809,8 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ Неверный формат даты. Введите дату в формате ДД.ММ (например, 15.12)" if user_data["language"] == "ru" else 
                 "⚠️ Wrong date format. Enter date in DD.MM format (e.g., 15.12)")
             return WAITING_FOR_INPUT
+    elif waiting_for == "details":
+        context.user_data["task_data"]["details"] = user_input
     
     del context.user_data["waiting_for"]
     
@@ -904,7 +961,9 @@ async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
                             'time': row[5],
                             'days_left': days_left,
                             'max_points': row[3],
-                            'format': row[2]
+                            'format': row[2],
+                            'book_type': row[7] if len(row) > 7 else "",
+                            'details': row[8] if len(row) > 8 else ""
                         })
                 except Exception as e:
                     logger.error(f"Ошибка обработки строки {row}: {e}")
@@ -969,12 +1028,15 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
         
         for task in tasks_by_days[days_left]:
             time_display = "По расписанию" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
+            book_icon = "📖" if task.get('book_type') == "open-book" else "📕"
+            details = f" | {task.get('details', '')}" if task.get('details') else ""
+            
             message += (
-                f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n" 
+                f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
+                f"{task['date']} | {time_display} | {task['max_points']} баллов{details}\n\n" 
                 if user_data["language"] == "ru" else
-                f"📌 *{task['subject']}* — {task['task_type']}\n"
-                f"🗓 {task['date']} | ⏰ {time_display} | 🏷 {task['format']} | 💯 {task['max_points']}\n\n"
+                f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
+                f"{task['date']} | {time_display} | {task['max_points']} points{details}\n\n"
             )
     
     try:
