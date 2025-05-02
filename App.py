@@ -448,12 +448,12 @@ def generate_edit_task_keyboard(user_lang="ru"):
         ],
         [
             # Первые 25% - Open-book (иконка + невидимый символ для баланса)
-            InlineKeyboardButton("📖\u2007", callback_data="open-book"),
+            InlineKeyboardButton("📖", callback_data="open-book"),
             # Вторые 25% - Closed-book (иконка + невидимый символ)
-            InlineKeyboardButton("📕\u2007", callback_data="closed-book"),
+            InlineKeyboardButton("📕", callback_data="closed-book"),
             # Оставшиеся 50% - Details (длинный текст + невидимые символы)
             InlineKeyboardButton(
-                "📝 Детали \u2007\u2007\u2007\u2007" if user_lang == "ru" else "📝 Details \u2007\u2007\u2007\u2007", 
+                "📝 Детали по заданию " if user_lang == "ru" else "📝 Details for the task", 
                 callback_data="edit_details"
             )
         ],
