@@ -447,8 +447,11 @@ def generate_edit_task_keyboard(user_lang="ru"):
             InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
         ],
         [
-            InlineKeyboardButton("📖 Open-book", callback_data="open-book"),
-            InlineKeyboardButton("📕 Closed-book", callback_data="closed-book"),
+            # Первые 25% - Open-book
+            InlineKeyboardButton("📖", callback_data="open-book"),
+            # Вторые 25% - Closed-book
+            InlineKeyboardButton("📕", callback_data="closed-book"),
+            # Оставшиеся 50% - Details
             InlineKeyboardButton("📝 Детали" if user_lang == "ru" else "📝 Details", callback_data="edit_details")
         ],
         [
