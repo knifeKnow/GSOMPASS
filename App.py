@@ -452,7 +452,7 @@ def generate_edit_task_keyboard(user_lang="ru"):
             # Вторые 25% - Closed-book
             InlineKeyboardButton("📕", callback_data="closed-book"),
             # Оставшиеся 50% - Details
-            InlineKeyboardButton("📝 Детали" if user_lang == "ru" else "📝 Details", callback_data="edit_details")
+            InlineKeyboardButton("📝 Детали \u2007  " if user_lang == "ru" else "📝 Details \u2007  ", callback_data="edit_details")
         ],
         [
             InlineKeyboardButton("✅ Сохранить" if user_lang == "ru" else "✅ Save", callback_data="save_task"),
