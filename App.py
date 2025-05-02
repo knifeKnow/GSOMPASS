@@ -292,7 +292,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         data = gsh.get_sheet_data(group)[1:]  # Пропускаем заголовок
         
         user_data = get_user_data(query.from_user.id)
-        response = f"📌 Задания для группы {group}:\n" if user_data["language"] == "ru" else f"📌 Tasks for group {group}:\n"
+        response = f"📌 Задания для группы {group}:\n\n" if user_data["language"] == "ru" else f"📌 Tasks for group {group}:\n\n"
         count = 0
         tasks = []
 
