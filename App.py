@@ -322,12 +322,16 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 if len(row) > 8 and row[8]:
                     details = f"\nℹ️ {row[8]}"
                 
+                # Добавляем пустую строку между заданиями
+                if count > 1:
+                    response += "\n"
+                
                 response += (
-                    f"\n📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
-                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} баллов{details}"
+                    f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
+                    f"📅{row[4]} | 🕒{time_display} | {row[3]} баллов курса{details}"
                     if user_data["language"] == "ru" else
-                    f"\n📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
-                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} points{details}"
+                    f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"
+                    f"📅{row[4]} | 🕒{time_display} | {row[3]} course points{details}"
                 )
                 
                 if show_delete_buttons:
