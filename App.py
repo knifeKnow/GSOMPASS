@@ -317,9 +317,9 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edi
                 # Добавляем информацию о Book Type и Details, если они есть
                 details = ""
                 if len(row) >= 8 and row[7]:  # Book Type
-                    details += f"\n📖 <b>Book Type:</b> {row[7]}"
+                    details += f"\n📖 Book Type: {row[7]}"
                 if len(row) >= 9 and row[8] and row[8].strip():  # Details (только если не пустые)
-                    details += f"\nℹ️ <b>Details:</b> {row[8]}"
+                    details += f"\nℹ️ Details: {row[8]}"
                 
                 response += (
                     f"\n🔹 *{row[0]}* — {row[1]} "
