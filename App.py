@@ -322,13 +322,13 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False, show_edi
                     details += f"\nℹ️ Details: {row[8]}"
                 
                 response += (
-                    f"\n🔹 *{row[0]}* — {row[1]} "
-                    f"({row[2]})\n"
-                    f"🗓 Дата: {row[4]} | Время: {time_display} | Баллы курса: {row[3]}{details}\n" 
-                    if user_data["language"] == "ru" else 
-                    f"\n🔹 *{row[0]}* — {row[1]} "
-                    f"({row[2]})\n"
-                    f"🗓 Date: {row[4]} | Time: {time_display} | Course Points: {row[3]}{details}\n"
+                    f"\n📖 *{row[0]}* – {row[1]} ({row[2]})\n"
+                    f"💯 Баллы: {row[3]} | 📚 Тип: {row[5] if len(row) > 5 else 'Не указано'}\n"
+                    f"📅 {row[4]} | 🕒 {time_display}\n{details}"
+                    if user_data["language"] == "ru" else
+                    f"\n📖 *{row[0]}* – {row[1]} ({row[2]})\n"
+                    f"💯 Points: {row[3]} | 📚 Type: {row[5] if len(row) > 5 else 'Not specified'}\n"
+                    f"📅 {row[4]} | 🕒 {time_display}\n{details}"
                 )
                 
                 if show_delete_buttons:
