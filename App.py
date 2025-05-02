@@ -323,13 +323,13 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                     details = f" | {row[8]}"
                 
                 response += (
-                    f"\n{book_icon} *{row[0]}* — {row[1]} "
-                    f"({row[2]})\n"
-                    f"{row[4]} | {time_display} | {row[3]} баллов{details}\n" 
-                    if user_data["language"] == "ru" else 
-                    f"\n{book_icon} *{row[0]}* — {row[1]} "
-                    f"({row[2]})\n"
-                    f"{row[4]} | {time_display} | {row[3]} points{details}\n"
+                    f"\n📚 *{row[0]}* — {row[1]} {'📖' if row[5] == 'Open-book' else '📗'} ({row[2]})\n"
+                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} баллов\n"
+                    f"{details if details else ''}"
+                    if user_data["language"] == "ru" else
+                    f"\n📚 *{row[0]}* — {row[1]} {'📖' if row[5] == 'Open-book' else '📗'} ({row[2]})\n"
+                    f"📅{row[4]} | 🕒{time_display} | 🧩{row[3]} points\n"
+                    f"{details if details else ''}"
                 )
                 
                 if show_delete_buttons:
