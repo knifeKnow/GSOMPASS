@@ -286,6 +286,78 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• 🔒 Only trusted users can make changes",
         reply_markup=InlineKeyboardMarkup(keyboard))
 
+def format_task_for_forwarding(task_row, group, user_lang="ru"):
+    """Форматирует задание для пересылки"""
+    time_display = "By schedule" if task_row[5] in ["23:59", "By schedule", "По расписанию"] else task_row[5]
+    book_icon = "📖" if len(task_row) > 7 and task_row[7] == "open-book" else "📕"
+    details = f" | {task_row[8]}" if len(task_row) > 8 and task_row[8] else ""
+    
+    task_text = (
+        f"📚 *{task_row[0]}* — {task_row[1]} {book_icon} | {task_row[2]}\n"
+        f"📅 {task_row[4]} | 🕒 {time_display} | *{task_row[3]}* баллов курса\n"
+        f"{details}\n"
+        f"Группа: {group}"
+        if user_lang == "ru" else
+        f"📚 *{task_row[0]}* — {task_row[1]} {book_icon} ({task_row[2]})\n"                   
+        f"📅 {task_row[4]} | 🕒 {time_display} | *{task_row[3]}* course points\n"
+        f"{details}\n"
+        f"Group: {group}"
+    )
+    return task_text
+
+async def forward_task_to_chat(update: Update, context: ContextTypes.DEFAULT_TYPE, task_text: str):
+    """Открывает интерфейс пересылки сообщения в выбранный чат"""
+    query = update.callback_query
+    await query.answer()
+
+    # Создаем временное сообщение с заданием
+    sent_message = await context.bot.send_message(
+        chat_id=query.from_user.id,
+        text=task_text,
+        parse_mode='Markdown'
+    )
+
+    # Открываем меню пересылки этого сообщения
+    await context.bot.forward_message(
+        chat_id=query.from_user.id,
+        from_chat_id=query.from_user.id,
+        message_id=sent_message.message_id
+    )
+
+    # Удаляем временное сообщение (необязательно)
+    await context.bot.delete_message(
+        chat_id=query.from_user.id,
+        message_id=sent_message.message_id
+    )
+
+async def forward_task_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик кнопки пересылки (теперь с меню выбора чата)"""
+    query = update.callback_query
+    await query.answer()
+
+    # Получаем данные из callback_data
+    callback_data = query.data.split('_')
+    if len(callback_data) != 4:
+        return
+
+    _, group, row_idx, _ = callback_data
+    row_idx = int(row_idx)
+
+    # Получаем данные задания
+    try:
+        data = gsh.get_sheet_data(group)
+        if row_idx <= len(data):
+            task_row = data[row_idx - 1]
+            user_data = get_user_data(query.from_user.id)
+            task_text = format_task_for_forwarding(task_row, group, user_data["language"])
+
+            # Открываем меню пересылки
+            await forward_task_to_chat(update, context, task_text)
+
+    except Exception as e:
+        logger.error(f"Ошибка при пересылке задания: {e}")
+        await query.answer("⛔ Ошибка при пересылке", show_alert=True)
+
 async def show_tasks_for_group(query, group, show_delete_buttons=False):
     """Показать задания для группы"""
     try:
@@ -332,6 +404,13 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                     f"{details}\n"  # Детали уже содержат перенос строки
                 )
                 
+                # Добавляем кнопку пересылки для каждого задания
+                task_hash = hash(tuple(row))  # Уникальный хеш для задания
+                keyboard.append([InlineKeyboardButton(
+                    "↗️ Переслать" if user_data["language"] == "ru" else "↗️ Forward",
+                    callback_data=f"forward_{group}_{row_idx}_{task_hash}"
+                )])
+                
                 if show_delete_buttons:
                     keyboard.append([InlineKeyboardButton(
                         f"🗑️ Удалить: {row[0]} ({row[4]})" 
@@ -343,7 +422,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         if count == 0:
             response = "ℹ️ Пока нет заданий для вашей группы." if user_data["language"] == "ru" else "ℹ️ No tasks for your group yet."
 
-        if show_delete_buttons:
+        if show_delete_buttons or keyboard:
             keyboard.append([InlineKeyboardButton(
                 "↩️ Назад" if user_data["language"] == "ru" else "↩️ Back", 
                 callback_data="back_to_menu")])
@@ -1168,6 +1247,7 @@ def main():
     application.add_handler(CallbackQueryHandler(callback_back_to_menu, pattern="back_to_menu"))
     application.add_handler(CallbackQueryHandler(callback_select_group, pattern="select_group"))
     application.add_handler(CallbackQueryHandler(set_user_group, pattern="^set_group_B-11$|^set_group_B-12$"))
+    application.add_handler(CallbackQueryHandler(forward_task_callback, pattern="^forward_"))
 
     # Обработчики настроек
     application.add_handler(CallbackQueryHandler(callback_reminder_settings, pattern="reminder_settings"))
