@@ -320,16 +320,16 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 # Формируем строку с деталями
                 details = ""
                 if len(row) > 8 and row[8]:
-                    details = f" | {row[8]}"
+                    details = f" | {row[8]}\n"  # Добавляем перенос строки после деталей
                 
                 response += (
                     f"📚 *{row[0]}* — {row[1]} {book_icon} | {row[2]}\n"
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* баллов курса\n" 
-                    f"{details}\n"
+                    f"{details}\n"  # Детали уже содержат перенос строки
                     if user_data["language"] == "ru" else
                     f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"                   
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* course points\n"
-                    f"{details}\n"
+                    f"{details}\n"  # Детали уже содержат перенос строки
                 )
                 
                 if show_delete_buttons:
