@@ -16,6 +16,7 @@ from telegram.ext import (
 from datetime import datetime, timedelta
 import pytz
 import logging
+from functools import lru_cache
 import time
 
 # Настройка логирования
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Константы
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
-REMINDER_TIME = "09:00"
+REMINDER_TIME = "12:35"
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))
 REMINDER_CHECK_INTERVAL = 60
 MAX_RETRIES = 3
@@ -45,7 +46,7 @@ ALLOWED_GROUPS = ["B-11", "B-12"]
 
 # Разрешенные пользователи
 ALLOWED_USERS = {
-    1062616885: "B-11",   #  1062616885   1042880639
+    1042880639: "B-11",   #  1062616885   1042880639
     797969195: "B-12"     #  1062616885   797969195
 }
 
@@ -53,6 +54,8 @@ class GoogleSheetsHelper:
     def __init__(self):
         self.client = None
         self.sheets = {}
+        self.last_fetch_time = {}
+        self.cached_data = {}
         self.initialize()
 
     def initialize(self):
@@ -76,13 +79,22 @@ class GoogleSheetsHelper:
             logger.error(f"Error loading sheets: {e}")
             raise
 
-    def get_sheet_data(self, sheet_name):
-        """Получить данные листа БЕЗ кэширования"""
+    @lru_cache(maxsize=128)
+    def get_sheet_data(self, sheet_name, force_refresh=False):
+        """Получить данные листа с кэшированием"""
+        current_time = time.time()
+        if not force_refresh and sheet_name in self.cached_data:
+            last_fetch = self.last_fetch_time.get(sheet_name, 0)
+            if current_time - last_fetch < 30:  # 0,5 минут кэша
+                return self.cached_data[sheet_name]
+
         retries = 0
         while retries < MAX_RETRIES:
             try:
                 sheet = self.sheets[sheet_name]
                 data = sheet.get_all_values()
+                self.cached_data[sheet_name] = data
+                self.last_fetch_time[sheet_name] = current_time
                 return data
             except gspread.exceptions.APIError as e:
                 if "429" in str(e):
@@ -99,7 +111,7 @@ class GoogleSheetsHelper:
         raise Exception("Max retries exceeded for Google Sheets API")
 
     def update_sheet(self, sheet_name, data):
-        """Обновить данные в листе"""
+        """Обновить данные в листе с обработкой ошибок"""
         retries = 0
         while retries < MAX_RETRIES:
             try:
@@ -108,6 +120,7 @@ class GoogleSheetsHelper:
                     sheet.append_row(data[0] if len(data) == 1 else data)
                 else:
                     sheet.append_row(data)
+                self.cached_data.pop(sheet_name, None)  # Инвалидируем кэш
                 return True
             except gspread.exceptions.APIError as e:
                 if "429" in str(e):
@@ -148,7 +161,7 @@ def convert_to_datetime(time_str, date_str):
         return None
 
 def get_user_data(user_id):
-    """Получить данные пользователя из таблицы"""
+    """Получить данные пользователя из кэша или таблицы"""
     try:
         users = gsh.get_sheet_data("Users")
         user_row = next((row for row in users if len(row) > 0 and str(user_id) == row[0]), None)
@@ -172,6 +185,10 @@ def update_user_data(user_id, field, value):
         if user_row_idx is not None:
             col_idx = {"group": 2, "reminders_enabled": 3, "language": 4, "feedback": 5}.get(field, 2)
             gsh.sheets["Users"].update_cell(user_row_idx + 1, col_idx, str(value))
+            
+            # Очищаем кэш только при изменении группы
+            if field == "group":
+                gsh.get_sheet_data.cache_clear()  # Очищаем кэш
             return True
     except Exception as e:
         logger.error(f"Error updating user data: {e}")
@@ -394,6 +411,9 @@ async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     group = query.data.replace("set_group_", "")
     
+    # Принудительно обновляем данные перед изменением группы
+    gsh.get_sheet_data("Users", force_refresh=True)
+    
     if update_user_data(user_id, "group", group):
         user_data = get_user_data(user_id)
         await query.edit_message_text(
@@ -427,8 +447,11 @@ def generate_edit_task_keyboard(user_lang="ru"):
             InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
         ],
         [
+            # Первые 25% - Open-book (иконка + невидимый символ для баланса)
             InlineKeyboardButton("📖", callback_data="open-book"),
+            # Вторые 25% - Closed-book (иконка + невидимый символ)
             InlineKeyboardButton("📕", callback_data="closed-book"),
+            # Оставшиеся 50% - Details (длинный текст + невидимые символы)
             InlineKeyboardButton(
                 "📝 Детали (опционально)" if user_lang == "ru" else "📝 Details (optional)", 
                 callback_data="edit_details"
@@ -442,17 +465,11 @@ def generate_edit_task_keyboard(user_lang="ru"):
 
 def generate_subject_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Business Statistics", callback_data="Business Statistics"),
-         InlineKeyboardButton("Career Planning Seminar", callback_data="Career Planning Seminar")],
-        [InlineKeyboardButton("Financial Management", callback_data="Financial Management"),
-         InlineKeyboardButton("International Economics and Business", callback_data="International Economics and Business")],
-        [InlineKeyboardButton("Marketing", callback_data="Marketing"),
-         InlineKeyboardButton("Organizational Behavior", callback_data="Organizational Behavior")],
-        [InlineKeyboardButton("Business Plan", callback_data="Business Plan"),
-         InlineKeyboardButton("Human Resource Management", callback_data="Human Resource Management")],
-        [InlineKeyboardButton("Corporate Social Responsibility", callback_data="Corporate Social Responsibility"),
-         InlineKeyboardButton("Management Accounting", callback_data="Management Accounting")],
-        [InlineKeyboardButton("Quantitative Methods", callback_data="Quantitative Methods"),
+        [InlineKeyboardButton("Maths", callback_data="Maths"),
+         InlineKeyboardButton("Management", callback_data="Management")],
+        [InlineKeyboardButton("DigTools", callback_data="DigTools"),
+         InlineKeyboardButton("FinAcc", callback_data="FinAcc")],
+        [InlineKeyboardButton("Microeconomics", callback_data="Microeconomics"),
          InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_subject")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
@@ -546,7 +563,7 @@ async def format_task_message(context):
     message += f"🔹 <b>Время:</b> {time_display}\n"
     
     message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
-    message += f"🔹 <b>Тип книги:</b> {task_data.get('book_type', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
+    message += f"🔹 <b>...бук:</b> {task_data.get('book_type', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Детали:</b> {task_data.get('details', 'не выбраны' if user_data['language'] == 'ru' else 'not selected')}\n\n"
     message += "Выберите параметр для изменения или сохраните задание:" if user_data['language'] == "ru" else "Select a parameter to change or save the task:"
     return message
@@ -571,7 +588,7 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "date": "не выбрана" if user_data["language"] == "ru" else "not selected",
         "time": "не выбрано" if user_data["language"] == "ru" else "not selected",
         "format": "не выбран" if user_data["language"] == "ru" else "not selected",
-        "book_type": "не выбран" if user_data["language"] == "ru" else "not selected",
+        "...book": "не выбран" if user_data["language"] == "ru" else "not selected",
         "details": "не выбраны" if user_data["language"] == "ru" else "not selected"
     }
 
@@ -650,10 +667,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text("📝 Введите детали:" if user_data["language"] == "ru" else "📝 Enter details:")
         context.user_data["waiting_for"] = "details"
         return WAITING_FOR_INPUT
-    elif query.data.startswith(("Business Statistics", "Career Planning Seminar", "Financial Management", 
-                              "International Economics and Business", "Marketing", "Organizational Behavior",
-                              "Business Plan", "Human Resource Management", "Corporate Social Responsibility", 
-                              "Management Accounting", "Quantitative Methods")):
+    elif query.data.startswith(("Maths", "Management", "DigTools", "FinAcc", "Microeconomics")):
         context.user_data["task_data"]["subject"] = query.data
         message = await format_task_message(context)
         await query.edit_message_text(
@@ -793,12 +807,12 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["task_data"]["date"] = user_input
             else:
                 await update.message.reply_text(
-                    "⚠️ Неверный формат дату. Введите дату в формате ДД.ММ (например, 15.12)" if user_data["language"] == "ru" else 
+                    "⚠️ Неверный формат даты. Введите дату в формате ДД.ММ (например, 15.12)" if user_data["language"] == "ru" else 
                     "⚠️ Wrong date format. Enter date in DD.MM format (e.g., 15.12)")
                 return WAITING_FOR_INPUT
         except:
             await update.message.reply_text(
-                "⚠️ Неверный формат дату. Введите дату в формате ДД.ММ (например, 15.12)" if user_data["language"] == "ru" else 
+                "⚠️ Неверный формат даты. Введите дату в формате ДД.ММ (например, 15.12)" if user_data["language"] == "ru" else 
                 "⚠️ Wrong date format. Enter date in DD.MM format (e.g., 15.12)")
             return WAITING_FOR_INPUT
     elif waiting_for == "details":
@@ -847,6 +861,7 @@ async def handle_task_deletion(update: Update, context: ContextTypes.DEFAULT_TYP
             all_values = gsh.get_sheet_data(group)
             if row_idx <= len(all_values):
                 gsh.sheets[group].delete_rows(row_idx)
+                gsh.get_sheet_data.cache_clear()  # Очищаем кэш
                 
                 await query.edit_message_text(
                     "✅ Задание успешно удалено!" if user_data["language"] == "ru" else "✅ Task deleted successfully!",
