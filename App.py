@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Константы
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
-REMINDER_TIME = "12:35"
+REMINDER_TIME = "09:00"
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))
 REMINDER_CHECK_INTERVAL = 60
 MAX_RETRIES = 3
@@ -46,7 +46,7 @@ ALLOWED_GROUPS = ["B-11", "B-12"]
 
 # Разрешенные пользователи
 ALLOWED_USERS = {
-    1042880639: "B-11",   #  1062616885   1042880639
+    1062616885: "B-11",   #  1062616885   1042880639
     797969195: "B-12"     #  1062616885   797969195
 }
 
