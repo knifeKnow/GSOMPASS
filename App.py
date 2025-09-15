@@ -308,11 +308,11 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 response += (
                     f"📚 *{row[0]}* — {row[1]} {book_icon} | {row[2]}\n"
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* баллов курса\n" 
-                    f"{details}"  # Убрал лишний перенос строки
+                    f"{details}\n"  # Детали уже содержат перенос строки
                     if user_data["language"] == "ru" else
                     f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"                   
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* course points\n"
-                    f"{details}"  # Убрал лишний перенос строки
+                    f"{details}\n"  # Детали уже содержат перенос строки
                 )
                 
                 if show_delete_buttons:
