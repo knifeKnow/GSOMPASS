@@ -132,16 +132,35 @@ except Exception as e:
 
 # Вспомогательные функции
 def convert_to_datetime(time_str, date_str):
-    """Конвертировать строку времени и даты в datetime объект"""
-    current_year = datetime.now().year
+    """Конвертировать строку времени и даты в datetime объект с правильным годом"""
     try:
         if time_str.lower() in ["by schedule", "по расписанию"]:
             time_str = "23:59"
             
         time_parts = time_str.split('-')
         start_time = time_parts[0]
-        date_with_year = f"{current_year}-{date_str}"
-        dt = datetime.strptime(f"{start_time}-{date_with_year}", '%H:%M-%Y-%d.%m')
+        
+        # Парсим дату без года (день.месяц)
+        day, month = map(int, date_str.split('.'))
+        
+        # Определяем правильный год
+        current_date = datetime.now(MOSCOW_TZ)
+        year = current_date.year
+        
+        # Если дата уже прошла в этом году, значит это на следующий год
+        proposed_date = datetime(year, month, day)
+        if proposed_date.date() < current_date.date():
+            year += 1
+            
+        dt = datetime(year, month, day)
+        
+        # Добавляем время
+        if ':' in start_time:
+            hours, minutes = map(int, start_time.split(':'))
+            dt = dt.replace(hour=hours, minute=minutes)
+        else:
+            dt = dt.replace(hour=23, minute=59)  # По умолчанию конец дня
+            
         return MOSCOW_TZ.localize(dt)
     except ValueError as e:
         logger.error(f"Ошибка преобразования времени: {e}")
@@ -1018,10 +1037,10 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
             
             message += (
                 f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
-                f"{task['date']} | {time_display} | {task['max_points']} баллов{details}\n\n" 
+                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} баллов{details}\n\n"  
                 if user_data["language"] == "ru" else
                 f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
-                f"{task['date']} | {time_display} | {task['max_points']} points{details}\n\n"
+                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} баллов{details}\n\n" 
             )
     
     try:
