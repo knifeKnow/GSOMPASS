@@ -647,8 +647,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         return WAITING_FOR_INPUT
         
     elif query.data.startswith(("Entrepreneurship", "Financial Analysis", "International Economics", 
-                          "Law", "Marketing", "Statistics")):
-                              
+                          "Law", "Marketing", "Statistics")):            
         context.user_data["task_data"]["subject"] = query.data
         message = await format_task_message(context)
         await query.edit_message_text(
