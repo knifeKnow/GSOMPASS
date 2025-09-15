@@ -300,19 +300,19 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 # Добавляем иконку типа книги
                 book_icon = "📖" if len(row) > 7 and row[7] == "open-book" else "📕"
                 
-                # Формируем строку с деталями
+                               # Формируем строку с деталями (только если детали есть)
                 details = ""
-                if len(row) > 8 and row[8]:
+                if len(row) > 8 and row[8] and row[8].strip() and row[8] != "не выбраны" and row[8] != "not selected":
                     details = f" | {row[8]}\n"  # Добавляем перенос строки после деталей
                 
                 response += (
                     f"📚 *{row[0]}* — {row[1]} {book_icon} | {row[2]}\n"
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* баллов курса\n" 
-                    f"{details}\n"  # Детали уже содержат перенос строки
+                    f"{details}"  # Убрал лишний перенос строки
                     if user_data["language"] == "ru" else
                     f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"                   
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* course points\n"
-                    f"{details}\n"  # Детали уже содержат перенос строки
+                    f"{details}"  # Убрал лишний перенос строки
                 )
                 
                 if show_delete_buttons:
