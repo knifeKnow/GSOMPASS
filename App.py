@@ -442,18 +442,13 @@ def generate_edit_task_keyboard(user_lang="ru"):
 
 def generate_subject_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Business Statistics", callback_data="Business Statistics"),
-         InlineKeyboardButton("Career Planning Seminar", callback_data="Career Planning Seminar")],
-        [InlineKeyboardButton("Financial Management", callback_data="Financial Management"),
-         InlineKeyboardButton("International Economics and Business", callback_data="International Economics and Business")],
+        [InlineKeyboardButton("Entrepreneurship", callback_data="Entrepreneurship"),
+         InlineKeyboardButton("Financial Analysis", callback_data="Financial Analysis")],
+        [InlineKeyboardButton("International Economics", callback_data="International Economics"),
+         InlineKeyboardButton("Law", callback_data="Law")],
         [InlineKeyboardButton("Marketing", callback_data="Marketing"),
-         InlineKeyboardButton("Organizational Behavior", callback_data="Organizational Behavior")],
-        [InlineKeyboardButton("Business Plan", callback_data="Business Plan"),
-         InlineKeyboardButton("Human Resource Management", callback_data="Human Resource Management")],
-        [InlineKeyboardButton("Corporate Social Responsibility", callback_data="Corporate Social Responsibility"),
-         InlineKeyboardButton("Management Accounting", callback_data="Management Accounting")],
-        [InlineKeyboardButton("Quantitative Methods", callback_data="Quantitative Methods"),
-         InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_subject")],
+         InlineKeyboardButton("Statistics", callback_data="Statistics")],
+        [InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_subject")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -650,10 +645,8 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text("📝 Введите детали:" if user_data["language"] == "ru" else "📝 Enter details:")
         context.user_data["waiting_for"] = "details"
         return WAITING_FOR_INPUT
-    elif query.data.startswith(("Business Statistics", "Career Planning Seminar", "Financial Management", 
-                              "International Economics and Business", "Marketing", "Organizational Behavior",
-                              "Business Plan", "Human Resource Management", "Corporate Social Responsibility", 
-                              "Management Accounting", "Quantitative Methods")):
+   elif query.data.startswith(("Entrepreneurship", "Financial Analysis", "International Economics", 
+                          "Law", "Marketing", "Statistics")):
         context.user_data["task_data"]["subject"] = query.data
         message = await format_task_message(context)
         await query.edit_message_text(
