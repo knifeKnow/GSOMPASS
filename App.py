@@ -645,8 +645,10 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text("📝 Введите детали:" if user_data["language"] == "ru" else "📝 Enter details:")
         context.user_data["waiting_for"] = "details"
         return WAITING_FOR_INPUT
-   elif query.data.startswith(("Entrepreneurship", "Financial Analysis", "International Economics", 
+        
+    elif query.data.startswith(("Entrepreneurship", "Financial Analysis", "International Economics", 
                           "Law", "Marketing", "Statistics")):
+                              
         context.user_data["task_data"]["subject"] = query.data
         message = await format_task_message(context)
         await query.edit_message_text(
