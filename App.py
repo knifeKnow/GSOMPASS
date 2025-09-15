@@ -301,8 +301,18 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         for idx, row in enumerate(data, start=2):
             if len(row) >= 7 and row[6] == group:
                 try:
+                    # Сначала проверяем что дата из таблицы актуальная (не прошлогодняя)
+                    day, month = map(int, row[4].split('.'))
+                    current_date = datetime.now(MOSCOW_TZ)
+                    
+                    # Если дата уже прошла в этом году, пропускаем это задание
+                    proposed_date = datetime(current_date.year, month, day)
+                    if proposed_date.date() < current_date.date():
+                        continue  # Пропускаем прошедшие задания
+                    
+                    # Теперь проверяем дедлайн с учетом времени
                     deadline = convert_to_datetime(row[5], row[4])
-                    if deadline:
+                    if deadline and deadline > datetime.now(MOSCOW_TZ):
                         tasks.append((deadline, row, idx))
                 except Exception as e:
                     logger.error(f"Ошибка при обработке задания: {e}")
@@ -319,7 +329,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 # Добавляем иконку типа книги
                 book_icon = "📖" if len(row) > 7 and row[7] == "open-book" else "📕"
                 
-                               # Формируем строку с деталями (только если детали есть)
+                # Формируем строку с деталями (только если детали есть)
                 details = ""
                 if len(row) > 8 and row[8] and row[8].strip() and row[8] != "не выбраны" and row[8] != "not selected":
                     details = f" | {row[8]}\n"  # Добавляем перенос строки после деталей
@@ -327,11 +337,11 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 response += (
                     f"📚 *{row[0]}* — {row[1]} {book_icon} | {row[2]}\n"
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* баллов курса\n" 
-                    f"{details}\n"  # Детали уже содержат перенос строки
+                    f"{details}"  # Убрал лишний перенос строки
                     if user_data["language"] == "ru" else
                     f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"                   
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* course points\n"
-                    f"{details}\n"  # Детали уже содержат перенос строки
+                    f"{details}"  # Убрал лишний перенос строки
                 )
                 
                 if show_delete_buttons:
@@ -362,7 +372,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
             if user_data["language"] == "ru" else 
             f"⛔ Error getting tasks: {str(e)}",
             reply_markup=main_menu_keyboard(user_data["language"]))
-
+        
 async def callback_get_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Получить данные о заданиях"""
     query = update.callback_query
