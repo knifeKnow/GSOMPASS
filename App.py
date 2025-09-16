@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Константы
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
-REMINDER_TIME = "01:29"
+REMINDER_TIME = "01:31"
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))
 REMINDER_CHECK_INTERVAL = 60
 MAX_RETRIES = 3
@@ -1031,7 +1031,7 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
     sorted_days = sorted(tasks_by_days.keys())
     
     # Создаем сообщение
-    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ*\n\n" if user_data["language"] == "ru" else "🔔 *DAILY TASKS REMINDER*\n\n"
+    message = "🔔 *ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ*\n" if user_data["language"] == "ru" else "🔔 *DAILY TASKS REMINDER*\n"
     
     for days_left in sorted_days:
         if days_left == 0:
