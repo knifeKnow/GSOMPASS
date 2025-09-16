@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Константы
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
-REMINDER_TIME = "09:00"
+REMINDER_TIME = "01:19"
 REMINDER_DAYS_BEFORE = list(range(10, -1, -1))
 REMINDER_CHECK_INTERVAL = 60
 MAX_RETRIES = 3
@@ -1044,18 +1044,26 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
         message += f"{day_header}\n"
         
         for task in tasks_by_days[days_left]:
-            # Просто показываем время как есть
+            # Просто показываем время как есть (без года)
             time_display = task['time']
                 
             book_icon = "📖" if task.get('book_type') == "open-book" else "📕"
-            details = f" | {task.get('details', '')}" if task.get('details') else ""
+            
+            # Формируем строку с деталями (только если детали есть и они не "не выбраны")
+            details = ""
+            if (task.get('details') and 
+                task['details'].strip() and 
+                task['details'] not in ["не выбраны", "not selected", ""]):
+                details = f" | {task['details']}\n"
             
             message += (
-                f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
-                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} баллов{details}\n\n" 
+                f"{book_icon} *{task['subject']}* — {task['task_type']} | {task['format']}\n"
+                f"📅 {task['date']} | 🕒 {time_display} | *{task['max_points']}* баллов курса\n" 
+                f"{details}"  # Детали только если есть
                 if user_data["language"] == "ru" else
-                f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
-                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} points{details}\n\n"
+                f"{book_icon} *{task['subject']}* — {task['task_type']} ({task['format']})\n"                   
+                f"📅 {task['date']} | 🕒 {time_display} | *{task['max_points']}* course points\n"
+                f"{details}"  # Детали только если есть
             )
     
     try:
