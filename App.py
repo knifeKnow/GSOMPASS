@@ -324,7 +324,9 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
         for deadline, row, row_idx in tasks:
             if deadline > datetime.now(MOSCOW_TZ):
                 count += 1
-                time_display = "By schedule" if row[5] in ["23:59", "By schedule", "По расписанию"] else row[5]
+                
+                # Просто показываем время как есть
+                time_display = row[5]
                 
                 # Добавляем иконку типа книги
                 book_icon = "📖" if len(row) > 7 and row[7] == "open-book" else "📕"
@@ -337,11 +339,11 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 response += (
                     f"📚 *{row[0]}* — {row[1]} {book_icon} | {row[2]}\n"
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* баллов курса\n" 
-                    f"{details}\n"  # Детали уже содержат перенос строки - ОСТАВЛЕНО!
+                    f"{details}\n"  # Детали уже содержат перенос строки
                     if user_data["language"] == "ru" else
                     f"📚 *{row[0]}* — {row[1]} {book_icon} ({row[2]})\n"                   
                     f"📅 {row[4]} | 🕒 {time_display} | *{row[3]}* course points\n"
-                    f"{details}\n"  # Детали уже содержат перенос строки - ОСТАВЛЕНО!
+                    f"{details}\n"  # Детали уже содержат перенос строки
                 )
                 
                 if show_delete_buttons:
@@ -1041,16 +1043,18 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
         message += f"{day_header}\n"
         
         for task in tasks_by_days[days_left]:
-            time_display = "По расписанию" if task['time'] in ["23:59", "By schedule", "По расписанию"] else task['time']
+            # Просто показываем время как есть
+            time_display = task['time']
+                
             book_icon = "📖" if task.get('book_type') == "open-book" else "📕"
             details = f" | {task.get('details', '')}" if task.get('details') else ""
             
             message += (
                 f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
-                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} баллов{details}\n\n"  
+                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} баллов{details}\n\n" 
                 if user_data["language"] == "ru" else
                 f"{book_icon} *{task['subject']}* — {task['task_type']}\n"
-                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} баллов{details}\n\n" 
+                f"{task['date']}.{datetime.now().year} | {time_display} | {task['max_points']} points{details}\n\n"
             )
     
     try:
