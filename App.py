@@ -134,9 +134,9 @@ except Exception as e:
 def convert_to_datetime(time_str, date_str):
     """Конвертировать строку времени и даты в datetime объект с правильным годом"""
     try:
-        if time_str.lower() in ["by schedule", "по расписанию"]:
-            time_str = "23:59"
-            
+        # НЕ преобразуем "By schedule" и "По расписанию" в "23:59"
+        # Оставляем всё как есть в базе данных
+        
         time_parts = time_str.split('-')
         start_time = time_parts[0]
         
@@ -154,12 +154,13 @@ def convert_to_datetime(time_str, date_str):
             
         dt = datetime(year, month, day)
         
-        # Добавляем время
-        if ':' in start_time:
+        # Добавляем время (только если это валидное время)
+        if ':' in start_time and start_time not in ["By schedule", "По расписанию"]:
             hours, minutes = map(int, start_time.split(':'))
             dt = dt.replace(hour=hours, minute=minutes)
         else:
-            dt = dt.replace(hour=23, minute=59)  # По умолчанию конец дня
+            # Для "By schedule", "По расписанию" и некорректного времени ставим конец дня
+            dt = dt.replace(hour=23, minute=59)
             
         return MOSCOW_TZ.localize(dt)
     except ValueError as e:
