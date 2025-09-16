@@ -1035,11 +1035,11 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
     
     for days_left in sorted_days:
         if days_left == 0:
-            day_header = "*СЕГОДНЯ*" if user_data["language"] == "ru" else "*TODAY*"
+            day_header = "\n*СЕГОДНЯ*" if user_data["language"] == "ru" else "\n*TODAY*"
         elif days_left == 1:
-            day_header = "*ЗАВТРА*" if user_data["language"] == "ru" else "*TOMORROW*"
+            day_header = "\n*ЗАВТРА*" if user_data["language"] == "ru" else "\n*TOMORROW*"
         else:
-            day_header = f"*ЧЕРЕЗ {days_left} ДНЕЙ*" if user_data["language"] == "ru" else f"*IN {days_left} DAYS*"
+            day_header = f"\n*ЧЕРЕЗ {days_left} ДНЕЙ*" if user_data["language"] == "ru" else f"\n*IN {days_left} DAYS*"
         
         message += f"{day_header}\n"
         
@@ -1059,11 +1059,11 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
             message += (
                 f"{book_icon} *{task['subject']}* — {task['task_type']} | {task['format']}\n"
                 f"📅 {task['date']} | 🕒 {time_display} | *{task['max_points']}* баллов курса\n" 
-                f"{details}"  # Детали только если есть
+                f"{details}\n"  # Детали только если есть
                 if user_data["language"] == "ru" else
                 f"{book_icon} *{task['subject']}* — {task['task_type']} ({task['format']})\n"                   
                 f"📅 {task['date']} | 🕒 {time_display} | *{task['max_points']}* course points\n"
-                f"{details}"  # Детали только если есть
+                f"{details}\n"  # Детали только если есть
             )
     
     try:
