@@ -287,22 +287,77 @@ def get_all_curators():
 
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard(user_lang="ru", is_curator=False):
-    """Клавиатура главного меню"""
-    buttons = [
-        ["📚 Посмотреть задания" if user_lang == "ru" else "📚 View tasks", "get_data"],
-        ["⚡ Добавить задание" if user_lang == "ru" else "⚡ Add task", "add_task"],
-        ["💣 Удалить задание" if user_lang == "ru" else "💣 Delete task", "delete_task"],
-        ["🏫 Выбор группы" if user_lang == "ru" else "🏫 Select group", "select_group"],
-        ["⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", "help"],
+    """Клавиатура главного меню с правильным расположением кнопок"""
+    if is_curator:
+        # Для кураторов: все кнопки
+        keyboard = [
+            [InlineKeyboardButton(
+                "📚 Посмотреть задания" if user_lang == "ru" else "📚 View tasks", 
+                callback_data="get_data")],
+            [
+                InlineKeyboardButton(
+                    "⚡ Добавить задание" if user_lang == "ru" else "⚡ Add task", 
+                    callback_data="add_task"),
+                InlineKeyboardButton(
+                    "💣 Удалить задание" if user_lang == "ru" else "💣 Delete task", 
+                    callback_data="delete_task")
+            ],
+            [
+                InlineKeyboardButton(
+                    "🏫 Выбор группы" if user_lang == "ru" else "🏫 Select group", 
+                    callback_data="select_group"),
+                InlineKeyboardButton(
+                    "⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", 
+                    callback_data="help")
+            ],
+            [InlineKeyboardButton(
+                "🏠 Назад в меню" if user_lang == "ru" else "🏠 Back to menu", 
+                callback_data="back_to_menu")]
+        ]
+    else:
+        # Для обычных пользователей: только просмотр и настройки
+        keyboard = [
+            [InlineKeyboardButton(
+                "📚 Посмотреть задания" if user_lang == "ru" else "📚 View tasks", 
+                callback_data="get_data")],
+            [
+                InlineKeyboardButton(
+                    "🏫 Выбор группы" if user_lang == "ru" else "🏫 Select group", 
+                    callback_data="select_group"),
+                InlineKeyboardButton(
+                    "⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", 
+                    callback_data="help")
+            ],
+            [InlineKeyboardButton(
+                "🏠 Назад в меню" if user_lang == "ru" else "🏠 Back to menu", 
+                callback_data="back_to_menu")]
+        ]
+    
+    return InlineKeyboardMarkup(keyboard)
+
+def help_keyboard(user_lang="ru", user_id=None):
+    """Клавиатура для раздела помощи/функционала"""
+    keyboard = [
+        [InlineKeyboardButton(
+            "🔔 Настройки напоминаний" if user_lang == "ru" else "🔔 Reminder settings", 
+            callback_data="reminder_settings")],
+        [InlineKeyboardButton(
+            "🌐 Изменить язык" if user_lang == "ru" else "🌐 Change language", 
+            callback_data="language_settings")],
+        [InlineKeyboardButton(
+            "📝 Оставить фидбэк" if user_lang == "ru" else "📝 Leave feedback", 
+            callback_data="leave_feedback")],
     ]
     
-    # Показываем кнопки добавления/удаления только кураторам
-    if not is_curator:
-        buttons = [buttons[0], buttons[3], buttons[4]]
+    # Добавляем кнопку админ-панели только для суперадминов
+    if user_id in SUPER_ADMINS:
+        keyboard.append([InlineKeyboardButton(
+            "👑 Админ-панель" if user_lang == "ru" else "👑 Admin panel", 
+            callback_data="admin_panel")])
     
-    keyboard = []
-    for i, btn in enumerate(buttons):
-        keyboard.append([InlineKeyboardButton(btn[0], callback_data=btn[1])])
+    keyboard.append([InlineKeyboardButton(
+        "↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", 
+        callback_data="back_to_menu")])
     
     return InlineKeyboardMarkup(keyboard)
 
