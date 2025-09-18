@@ -34,6 +34,12 @@ REMINDER_TIME = "09:00"
 REMINDER_CHECK_INTERVAL = 60
 MAX_RETRIES = 3
 RETRY_DELAY = 5
+COURSES = {
+    "1": "1 курс",
+    "2": "2 курс", 
+    "3": "3 курс",
+    "4": "4 курс"
+}
 
 # Стейты для ConversationHandler
 EDITING_TASK, WAITING_FOR_INPUT, WAITING_FOR_FEEDBACK = range(3, 6)
@@ -372,6 +378,40 @@ def admin_keyboard(user_lang="ru"):
     ]
     return InlineKeyboardMarkup(keyboard)
 
+async def handle_course_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка выбора курса куратором"""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    user_data = get_user_data(user_id)
+    
+    course = query.data.replace("course_", "")
+    context.user_data["selected_course"] = course
+    
+    await query.edit_message_text(
+        f"🎓 Выбран {COURSES[course]}\n\n"
+        "Теперь введите название вашей группы:\n"
+        "• Например: Б-16, М-21, А-1\n"
+        "• Можно использовать любое название"
+        if user_data["language"] == "ru" else
+        f"🎓 Selected {COURSES[course]}\n\n"
+        "Now enter your group name:\n"
+        "• Example: B-16, M-21, A-1\n"
+        "• Any name is allowed"
+    )
+    return WAITING_FOR_GROUP_NAME
+
+def generate_courses_keyboard(user_lang="ru"):
+    """Клавиатура для выбора курса"""
+    keyboard = [
+        [InlineKeyboardButton("1 курс" if user_lang == "ru" else "1st year", callback_data="course_1")],
+        [InlineKeyboardButton("2 курс" if user_lang == "ru" else "2nd year", callback_data="course_2")],
+        [InlineKeyboardButton("3 курс" if user_lang == "ru" else "3rd year", callback_data="course_3")],
+        [InlineKeyboardButton("4 курс" if user_lang == "ru" else "4th year", callback_data="course_4")],
+        [InlineKeyboardButton("↩️ Назад" if user_lang == "ru" else "↩️ Back", callback_data="back_to_menu")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 def generate_edit_task_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
         [
@@ -687,25 +727,27 @@ async def handle_curator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def handle_group_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка ввода названия группы от куратора"""
+    """Обработка ввода названия группы от куратора с привязкой к курсу"""
     user_id = update.effective_user.id
-    group_name = update.message.text.strip().upper()  # Приводим к верхнему регистру
+    group_name = update.message.text.strip()
+    
+    # Проверка на user_id для суперадмина
+    if update.message.text.isdigit() and user_id in SUPER_ADMINS:
+        return await handle_curator_id(update, context)
     
     user_data = get_user_data(user_id)
     if not user_data.get("is_curator", False):
         await update.message.reply_text("❌ У вас нет прав куратора")
         return
     
-    # Валидация названия группы
-    if not re.match(r'^[A-Z]-\d{2,3}$', group_name):
-        await update.message.reply_text(
-            "❌ Неверный формат группы!\n\n"
-            "Используйте формат: *Буква-Цифры*\n"
-            "Пример: B-13, M-21, A-105\n\n"
-            "Пожалуйста, введите еще раз:",
-            parse_mode='Markdown'
-        )
-        return
+    # Получаем выбранный курс
+    course = context.user_data.get("selected_course")
+    if not course:
+        await update.message.reply_text("❌ Сначала выберите курс")
+        return await callback_select_course(update, context)
+    
+    # Создаем полное название группы с курсом: "1/Б-16"
+    full_group_name = f"{course}/{group_name}"
     
     # Архивируем старый лист если он есть
     old_group = user_data.get("group")
@@ -714,15 +756,16 @@ async def handle_group_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # Создаем новый лист
     try:
-        gsh.create_worksheet(group_name)
+        gsh.create_worksheet(full_group_name)
         
         # Устанавливаем группу куратору
-        update_user_data(user_id, "group", group_name)
+        update_user_data(user_id, "group", full_group_name)
+        update_user_data(user_id, "course", course)  # Сохраняем курс
         
         await update.message.reply_text(
-            f"✅ *Группа {group_name} установлена!*\n\n"
-            f"Лист '{group_name}' создан в таблице.\n"
-            f"Старые данные архивированы.\n\n"
+            f"✅ *Группа '{group_name}' создана!*\n\n"
+            f"Курс: {COURSES[course]}\n"
+            f"Полное название: {full_group_name}\n\n"
             "Теперь вам доступны:\n"
             "• 📝 Добавление заданий\n"
             "• 🗑️ Удаление заданий\n"
@@ -857,6 +900,79 @@ async def confirm_new_semester(update: Update, context: ContextTypes.DEFAULT_TYP
             "❌ Ошибка при запуске нового семестра",
             reply_markup=admin_keyboard(user_data["language"])
         )
+
+async def callback_select_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Выбор группы - сначала курс, потом группы курса"""
+    query = update.callback_query
+    await query.answer()
+    user_data = get_user_data(query.from_user.id)
+    
+    await query.edit_message_text(
+        "🎓 Выберите ваш курс:" if user_data["language"] == "ru" else "🎓 Select your year:",
+        reply_markup=generate_courses_keyboard(user_data["language"])
+    )
+
+async def handle_course_selection_student(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка выбора курса студентом"""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    user_data = get_user_data(user_id)
+    
+    course = query.data.replace("course_", "")
+    
+    # Получаем все группы этого курса
+    try:
+        all_sheets = list(gsh.sheets.keys())
+        course_groups = [
+            sheet for sheet in all_sheets 
+            if sheet.startswith(f"{course}/") and not sheet.endswith('Archive')
+        ]
+        
+        # Убираем префикс курса для отображения
+        display_groups = [group.replace(f"{course}/", "") for group in course_groups]
+        display_groups.sort()
+        
+    except Exception as e:
+        logger.error(f"Error getting course groups: {e}")
+        display_groups = []
+    
+    if not display_groups:
+        await query.edit_message_text(
+            f"❌ На {COURSES[course]} пока нет групп\n\n"
+            "Выберите другой курс:" if user_data["language"] == "ru" else
+            f"❌ No groups for {COURSES[course]}\n\n"
+            "Select another year:",
+            reply_markup=generate_courses_keyboard(user_data["language"])
+        )
+        return
+    
+    # Создаем кнопки групп курса
+    group_keyboard = []
+    row_buttons = []
+    
+    for group in display_groups:
+        full_group_name = f"{course}/{group}"
+        row_buttons.append(InlineKeyboardButton(group, callback_data=f"set_group_{full_group_name}"))
+        
+        if len(row_buttons) == 2:
+            group_keyboard.append(row_buttons)
+            row_buttons = []
+    
+    if row_buttons:
+        group_keyboard.append(row_buttons)
+    
+    group_keyboard.append([InlineKeyboardButton(
+        "↩️ Назад к курсам" if user_data["language"] == "ru" else "↩️ Back to years", 
+        callback_data="select_group")])
+    
+    await query.edit_message_text(
+        f"🎓 {COURSES[course]}\n\n"
+        "Выберите вашу группу:" if user_data["language"] == "ru" else
+        f"🎓 {COURSES[course]}\n\n"
+        "Select your group:",
+        reply_markup=InlineKeyboardMarkup(group_keyboard)
+    )
 
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показать статистику"""
@@ -1788,6 +1904,10 @@ def main():
     application.add_handler(feedback_handler)
     application.add_handler(curator_handler)
     application.add_handler(group_handler)
+
+    # Добавь эти обработчики
+    application.add_handler(CallbackQueryHandler(handle_course_selection, pattern="^course_[1-4]$"))
+    application.add_handler(CallbackQueryHandler(handle_course_selection_student, pattern="^course_[1-4]$"))
     
     # Настраиваем периодическую проверку напоминаний
     job_queue = application.job_queue
