@@ -314,7 +314,8 @@ def get_user_data(user_id):
     """Получить данные пользователя из таблицы"""
     try:
         users = get_cached_sheet_data("Users")
-        user_row = next((row for row in users if len(row) > 0 and str(user_id) == row[0]), None)
+        # Добавьте проверку на пустые строки
+        user_row = next((row for row in users if row and len(row) > 0 and str(user_id) == row[0]), None)
         if user_row:
             return {
                 "group": user_row[1] if len(user_row) > 1 and user_row[1] != "" else None,
@@ -793,9 +794,9 @@ async def handle_curator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         curator_id = int(user_input)
 
-        # Проверяем что пользователь есть в системе
+        # Проверяем что пользователь есть в системе - ИСПРАВЛЕННАЯ ПРОВЕРКА
         users = get_cached_sheet_data("Users")
-        user_exists = any(str(curator_id) == row[0] for row in users if len(row) > 0)
+        user_exists = any(str(curator_id) == row[0] for row in users if row and len(row) > 0)
 
         if not user_exists:
             await update.message.reply_text(
@@ -849,7 +850,7 @@ async def handle_curator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     return ConversationHandler.END
-
+    
 async def curator_create_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Начать процесс создания группы куратором"""
     query = update.callback_query
