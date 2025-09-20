@@ -2130,7 +2130,7 @@ def main():
         fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
     )
 
-    # Обработчик для выбора группы студентами
+       # Обработчик для выбора группы студентами - ИСПРАВЛЕНО!
     group_selection_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(callback_select_group, pattern="select_group")],
         states={
