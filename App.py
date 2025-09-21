@@ -2361,8 +2361,8 @@ def main():
 
     application = Application.builder().token(token).build()
 
-    # Основные обработчики
-    application.add_handler(CommandHandler("start", start))
+    # Основные обработчики - ДОБАВЛЯЕМ CommandHandler для /start
+    application.add_handler(CommandHandler("start", start))  # ← ЭТУ СТРОКУ НУЖНО ДОБАВИТЬ
     application.add_handler(CallbackQueryHandler(callback_get_data, pattern="get_data"))
     application.add_handler(CallbackQueryHandler(callback_help, pattern="help"))
     application.add_handler(CallbackQueryHandler(callback_back_to_menu, pattern="back_to_menu"))
