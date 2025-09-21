@@ -2362,7 +2362,7 @@ def main():
     application = Application.builder().token(token).build()
 
     # Основные обработчики - ДОБАВЛЯЕМ CommandHandler для /start
-    application.add_handler(CommandHandler("start", start))  # ← ЭТУ СТРОКУ НУЖНО ДОБАВИТЬ
+    application.add_handler(CommandHandler("start", start))  # ← ОСТАВЬТЕ ЭТУ СТРОКУ
     application.add_handler(CallbackQueryHandler(callback_get_data, pattern="get_data"))
     application.add_handler(CallbackQueryHandler(callback_help, pattern="help"))
     application.add_handler(CallbackQueryHandler(callback_back_to_menu, pattern="back_to_menu"))
@@ -2422,7 +2422,7 @@ def main():
 
     # Обработчик для назначения кураторов по username
     curator_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(admin_make_curator, pattern="admin_make_curator")],
+        entry_points=[CallbackHandler(admin_make_curator, pattern="admin_make_curator")],
         states={
             WAITING_FOR_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_username_input)],
             CONFIRM_CURATOR: [CallbackQueryHandler(confirm_make_curator, pattern="confirm_make_curator")]
@@ -2455,6 +2455,9 @@ def main():
     application.add_handler(curator_handler)
     application.add_handler(group_creation_handler)
     application.add_handler(group_selection_handler)
+
+    # УДАЛИТЕ ЭТУ СТРОКУ - ОНА ДУБЛИРУЕТ ПЕРВЫЙ ОБРАБОТЧИК
+    # application.add_handler(CommandHandler("start", start))  # ← УДАЛИТЬ ЭТУ СТРОКУ
 
     # Настраиваем периодическую проверку напоминаний
     job_queue = application.job_queue
