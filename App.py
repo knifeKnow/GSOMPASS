@@ -47,8 +47,14 @@ COURSES = {
 (
     EDITING_TASK, WAITING_FOR_INPUT, WAITING_FOR_FEEDBACK,
     WAITING_FOR_CURATOR_ID, WAITING_FOR_GROUP_NAME,
-    CHOOSING_COURSE_FOR_GROUP, TYPING_GROUP_NAME
-) = range(7)
+    CHOOSING_COURSE_FOR_GROUP, TYPING_GROUP_NAME,
+    # Новые стейты для системы кураторов
+    WAITING_FOR_USERNAME, CONFIRM_CURATOR, 
+    CURATOR_APPLICATION_COURSE, CURATOR_APPLICATION_GROUP,
+    ADMIN_CURATOR_GROUP, ADMIN_CURATOR_COURSE,
+    # Стейты для процесса создания группы после назначения
+    NEW_CURATOR_COURSE, NEW_CURATOR_GROUP
+) = range(16)
 
 # Языки
 LANGUAGES = {"ru": "Русский", "en": "English"}
@@ -232,6 +238,29 @@ class GoogleSheetsHelper:
         except Exception as e:
             logger.error(f"Error creating worksheet {group_name}: {e}")
             raise
+
+    def delete_worksheet(self, group_name):
+        """Удалить лист группы"""
+        try:
+            if group_name not in self.sheets:
+                return False
+
+            spreadsheet = self.client.open("GSOM-PLANNER")
+            worksheet = self.sheets[group_name]
+            
+            # Удаляем лист
+            spreadsheet.del_worksheet(worksheet)
+            
+            # Обновляем кэш
+            del self.sheets[group_name]
+            invalidate_sheet_cache()
+            
+            logger.info(f"Deleted worksheet: {group_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting worksheet {group_name}: {e}")
+            return False
 
     def archive_worksheet(self, group_name):
         """Архивировать лист (переименовать)"""
@@ -432,7 +461,7 @@ def get_groups_by_course(course):
 def main_menu_keyboard(user_lang="ru", is_curator=False):
     """Клавиатура главного меню с правильным расположением кнопок"""
     if is_curator:
-        # Для кураторов: все кнопки
+        # Для кураторов: все кнопки КРОМЕ выбора группы
         keyboard = [
             [InlineKeyboardButton(
                 "📚 Посмотреть задания" if user_lang == "ru" else "📚 View tasks", 
@@ -447,9 +476,6 @@ def main_menu_keyboard(user_lang="ru", is_curator=False):
             ],
             [
                 InlineKeyboardButton(
-                    "🏫 Выбор группы" if user_lang == "ru" else "🏫 Select group", 
-                    callback_data="select_group"),
-                InlineKeyboardButton(
                     "⚙️ Функционал" if user_lang == "ru" else "⚙️ Features", 
                     callback_data="help")
             ],
@@ -458,7 +484,7 @@ def main_menu_keyboard(user_lang="ru", is_curator=False):
                 callback_data="back_to_menu")]
         ]
     else:
-        # Для обычных пользователей: только просмотр и настройки
+        # Для обычных пользователей: просмотр, выбор группы и настройки
         keyboard = [
             [InlineKeyboardButton(
                 "📚 Посмотреть задания" if user_lang == "ru" else "📚 View tasks", 
@@ -492,6 +518,13 @@ def help_keyboard(user_lang="ru", user_id=None):
             callback_data="leave_feedback")],
     ]
 
+    # Добавляем кнопку "Стать куратором" только для обычных пользователей
+    user_data = get_cached_user_data(user_id) if user_id else {"is_curator": False}
+    if not user_data.get("is_curator", False):
+        keyboard.append([InlineKeyboardButton(
+            "📢 Стать куратором" if user_lang == "ru" else "📢 Become curator", 
+            callback_data="become_curator")])
+
     # Добавляем кнопку админ-панели только для суперадминов
     if user_id in SUPER_ADMINS:
         keyboard.append([InlineKeyboardButton(
@@ -510,7 +543,7 @@ def admin_keyboard(user_lang="ru"):
         [InlineKeyboardButton("👥 Назначить куратора" if user_lang == "ru" else "👥 Make curator", callback_data="admin_make_curator")],
         [InlineKeyboardButton("📋 Список кураторов" if user_lang == "ru" else "📋 Curators list", callback_data="admin_list_curators")],
         [InlineKeyboardButton("📊 Статистика" if user_lang == "ru" else "📊 Statistics", callback_data="admin_stats")],
-        [InlineKeyboardButton("🎓 Новый семестр" if user_lang == "ru" else "🎓 New semester", callback_data="admin_new_semester")],
+        [InlineKeyboardButton("🎓 Новый учебный год" if user_lang == "ru" else "🎓 New academic year", callback_data="admin_new_year")],
         [InlineKeyboardButton("↩️ Назад" if user_lang == "ru" else "↩️ Back", callback_data="back_to_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -750,7 +783,7 @@ async def callback_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # ==================== СИСТЕМА КУРАТОРОВ ====================
 async def admin_make_curator(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начать процесс назначения куратора"""
+    """Начать процесс назначения куратора по username"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -763,38 +796,39 @@ async def admin_make_curator(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await query.edit_message_text(
         "👥 *Назначение куратора*\n\n"
-        "Введите user_id пользователя (только цифры):\n\n"
-        "Как получить user_id:\n"
-        "1. Попросите пользователя написать /start боту\n"
-        "2. Скопируйте цифры из его профиля Telegram\n"
-        "3. Отправьте мне эти цифры" 
+        "Введите @username пользователя (например, @ivanov):\n\n"
+        "Пользователь должен был хотя бы раз написать /start боту." 
         if user_data["language"] == "ru" else 
         "👥 *Make Curator*\n\n"
-        "Enter user_id (numbers only):\n\n"
-        "How to get user_id:\n"
-        "1. Ask user to type /start to the bot\n"
-        "2. Copy numbers from their Telegram profile\n"
-        "3. Send me these numbers",
+        "Enter user's @username (e.g., @ivanov):\n\n"
+        "The user must have started the bot at least once with /start.",
         parse_mode='Markdown',
         reply_markup=admin_back_keyboard(user_data["language"])
     )
 
-    return WAITING_FOR_CURATOR_ID
+    return WAITING_FOR_USERNAME
 
-async def handle_curator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка введенного user_id куратора"""
+async def handle_username_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка введенного username куратора"""
     user_id = update.effective_user.id
 
     if user_id not in SUPER_ADMINS:
         await update.message.reply_text("❌ Доступ запрещен")
         return ConversationHandler.END
 
-    user_input = update.message.text.strip()
+    username = update.message.text.strip()
+    user_data = get_cached_user_data(user_id)
+
+    # Убираем @ если пользователь его ввел
+    if username.startswith('@'):
+        username = username[1:]
 
     try:
-        curator_id = int(user_input)
-
-        # Проверяем что пользователь есть в системе - ИСПРАВЛЕННАЯ ПРОВЕРКА
+        # Пытаемся получить информацию о пользователе
+        curator_chat = await context.bot.get_chat(f"@{username}")
+        curator_id = curator_chat.id
+        
+        # Проверяем что пользователь есть в системе
         users = get_cached_sheet_data("Users")
         user_exists = any(str(curator_id) == row[0] for row in users if row and len(row) > 0)
 
@@ -802,55 +836,270 @@ async def handle_curator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "❌ Пользователь не найден в системе.\n"
                 "Попросите его сначала написать /start боту.",
-                reply_markup=admin_back_keyboard(get_cached_user_data(user_id)["language"])
+                reply_markup=admin_back_keyboard(user_data["language"])
             )
             return ConversationHandler.END
 
-        # Назначаем куратором
-        success = update_cached_user_data(curator_id, "is_curator", True)
+        # Сохраняем данные для подтверждения
+        context.user_data["curator_id"] = curator_id
+        context.user_data["curator_username"] = username
+        context.user_data["curator_name"] = f"{curator_chat.first_name} {curator_chat.last_name or ''}".strip()
 
-        if success:
-            await update.message.reply_text(
-                f"✅ Пользователь {curator_id} теперь куратор!\n\n"
-                "Бот автоматически отправит ему приглашение создать группу.",
-                reply_markup=admin_keyboard(get_cached_user_data(user_id)["language"])
+        # Запрашиваем подтверждение
+        confirm_keyboard = [
+            [InlineKeyboardButton("✅ Да, назначить" if user_data["language"] == "ru" else "✅ Yes, appoint", callback_data="confirm_make_curator")],
+            [InlineKeyboardButton("❌ Отмена" if user_data["language"] == "ru" else "❌ Cancel", callback_data="admin_panel")]
+        ]
+
+        await update.message.reply_text(
+            f"👤 *Информация о пользователе:*\n\n"
+            f"• Имя: {context.user_data['curator_name']}\n"
+            f"• Username: @{username}\n"
+            f"• ID: {curator_id}\n\n"
+            f"Назначить этого пользователя куратором?" 
+            if user_data["language"] == "ru" else
+            f"👤 *User Information:*\n\n"
+            f"• Name: {context.user_data['curator_name']}\n"
+            f"• Username: @{username}\n"
+            f"• ID: {curator_id}\n\n"
+            f"Appoint this user as curator?",
+            reply_markup=InlineKeyboardMarkup(confirm_keyboard),
+            parse_mode='Markdown'
+        )
+
+        return CONFIRM_CURATOR
+
+    except Exception as e:
+        logger.error(f"Error getting user by username @{username}: {e}")
+        await update.message.reply_text(
+            f"❌ Пользователь @{username} не найден или не начинал диалог с ботом.\n"
+            "Проверьте правильность username и попросите пользователя написать /start боту." 
+            if user_data["language"] == "ru" else
+            f"❌ User @{username} not found or hasn't started conversation with bot.\n"
+            "Check username correctness and ask user to type /start to the bot.",
+            reply_markup=admin_back_keyboard(user_data["language"])
+        )
+        return ConversationHandler.END
+
+async def confirm_make_curator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Подтверждение назначения куратора"""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    if user_id not in SUPER_ADMINS:
+        await query.edit_message_text("❌ Доступ запрещен")
+        return
+
+    curator_id = context.user_data.get("curator_id")
+    curator_username = context.user_data.get("curator_username")
+    curator_name = context.user_data.get("curator_name")
+    user_data = get_cached_user_data(user_id)
+
+    if not curator_id:
+        await query.edit_message_text("❌ Ошибка: данные пользователя утеряны")
+        return ConversationHandler.END
+
+    # Назначаем куратором
+    success = update_cached_user_data(curator_id, "is_curator", True)
+
+    if success:
+        await query.edit_message_text(
+            f"✅ Пользователь {curator_name} (@{curator_username}) теперь куратор!\n\n"
+            "Бот автоматически отправит ему приглашение создать группу." 
+            if user_data["language"] == "ru" else
+            f"✅ User {curator_name} (@{curator_username}) is now a curator!\n\n"
+            "The bot will automatically send him an invitation to create a group.",
+            reply_markup=admin_keyboard(user_data["language"])
+        )
+
+        # Отправляем уведомление новому куратору и запускаем процесс создания группы
+        try:
+            curator_data = get_cached_user_data(curator_id)
+            await context.bot.send_message(
+                curator_id,
+                "🎉 *ВЫ НАЗНАЧЕНЫ КУРАТОРОМ!*\n\n"
+                "Теперь вы можете создать группу для ваших студентов.\n"
+                "Нажмите кнопку ниже, чтобы начать:" 
+                if curator_data["language"] == "ru" else
+                "🎉 *YOU HAVE BEEN APPOINTED AS A CURATOR!*\n\n"
+                "Now you can create a group for your students.\n"
+                "Click the button below to get started:",
+                reply_markup=curator_welcome_keyboard(curator_data["language"]),
+                parse_mode='Markdown'
             )
+        except Exception as e:
+            logger.error(f"Error notifying curator {curator_id}: {e}")
+            await query.edit_message_text(
+                f"✅ Куратор назначен, но не удалось отправить уведомление.\n"
+                f"Попросите его нажать /start и создать группу через меню." 
+                if user_data["language"] == "ru" else
+                f"✅ Curator appointed, but failed to send notification.\n"
+                f"Ask him to press /start and create group through menu."
+            )
+    else:
+        await query.edit_message_text(
+            "❌ Ошибка при назначении куратора" 
+            if user_data["language"] == "ru" else
+            "❌ Error appointing curator",
+            reply_markup=admin_back_keyboard(user_data["language"])
+        )
 
-            # Отправляем уведомление новому куратору
+    # Очищаем временные данные
+    context.user_data.pop("curator_id", None)
+    context.user_data.pop("curator_username", None)
+    context.user_data.pop("curator_name", None)
+
+    return ConversationHandler.END
+
+async def become_curator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Пользователь хочет стать куратором"""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    user_data = get_cached_user_data(user_id)
+
+    # Проверяем, не является ли уже куратором
+    if user_data.get("is_curator", False):
+        await query.edit_message_text(
+            "ℹ️ Вы уже являетесь куратором!" 
+            if user_data["language"] == "ru" else
+            "ℹ️ You are already a curator!",
+            reply_markup=main_menu_keyboard(user_data["language"], True)
+        )
+        return ConversationHandler.END
+
+    # Отправляем заявку суперадмину
+    try:
+        user_chat = await context.bot.get_chat(user_id)
+        user_name = f"{user_chat.first_name} {user_chat.last_name or ''}".strip()
+        username = f"@{user_chat.username}" if user_chat.username else "нет username"
+
+        # Формируем сообщение для суперадмина
+        admin_message = (
+            f"📨 *НОВАЯ ЗАЯВКА НА КУРАТОРСТВО*\n\n"
+            f"• Пользователь: {user_name}\n"
+            f"• Username: {username}\n"
+            f"• ID: {user_id}\n\n"
+            f"Назначить куратором?"
+        )
+
+        admin_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Назначить", callback_data=f"approve_curator_{user_id}")],
+            [InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_curator_{user_id}")]
+        ])
+
+        # Отправляем всем суперадминам
+        for admin_id in SUPER_ADMINS:
             try:
+                await context.bot.send_message(
+                    admin_id,
+                    admin_message,
+                    reply_markup=admin_keyboard,
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                logger.error(f"Error sending curator application to admin {admin_id}: {e}")
+
+        await query.edit_message_text(
+            "✅ Ваша заявка отправлена администратору! Ожидайте решения." 
+            if user_data["language"] == "ru" else
+            "✅ Your application has been sent to administrator! Please wait for approval.",
+            reply_markup=main_menu_keyboard(user_data["language"], False)
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing curator application: {e}")
+        await query.edit_message_text(
+            "❌ Ошибка при отправке заявки. Попробуйте позже." 
+            if user_data["language"] == "ru" else
+            "❌ Error sending application. Please try again later.",
+            reply_markup=main_menu_keyboard(user_data["language"], False)
+        )
+
+    return ConversationHandler.END
+
+async def handle_curator_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка одобрения/отклонения заявки на кураторство"""
+    query = update.callback_query
+    await query.answer()
+    admin_id = query.from_user.id
+
+    if admin_id not in SUPER_ADMINS:
+        await query.edit_message_text("❌ Доступ запрещен")
+        return
+
+    # Извлекаем action и user_id из callback_data
+    action, user_id_str = query.data.split('_')[1:3]
+    curator_id = int(user_id_str)
+    admin_data = get_cached_user_data(admin_id)
+
+    try:
+        if action == "approve":
+            # Назначаем куратором
+            success = update_cached_user_data(curator_id, "is_curator", True)
+
+            if success:
+                # Уведомляем админа
+                await query.edit_message_text(
+                    "✅ Заявка одобрена! Пользователь назначен куратором." 
+                    if admin_data["language"] == "ru" else
+                    "✅ Application approved! User appointed as curator.",
+                    reply_markup=admin_back_keyboard(admin_data["language"])
+                )
+
+                # Уведомляем нового куратора и запускаем процесс создания группы
                 curator_data = get_cached_user_data(curator_id)
                 await context.bot.send_message(
                     curator_id,
-                    "🎉 *ВЫ НАЗНАЧЕНЫ КУРАТОРОМ!*\n\n"
-                    "Теперь вы можете создать группу для ваших студентов.\n"
+                    "🎉 *ВАША ЗАЯВКА ОДОБРЕНА!*\n\n"
+                    "Теперь вы куратор и можете создать группу для ваших студентов.\n"
                     "Нажмите кнопку ниже, чтобы начать:" 
-                    if curator_data["language"] == "ru" else 
-                    "🎉 *YOU HAVE BEEN APPOINTED AS A CURATOR!*\n\n"
-                    "Now you can create a group for your students.\n"
+                    if curator_data["language"] == "ru" else
+                    "🎉 *YOUR APPLICATION HAS BEEN APPROVED!*\n\n"
+                    "Now you are a curator and can create a group for your students.\n"
                     "Click the button below to get started:",
                     reply_markup=curator_welcome_keyboard(curator_data["language"]),
                     parse_mode='Markdown'
                 )
-            except Exception as e:
-                logger.error(f"Error notifying curator {curator_id}: {e}")
-                await update.message.reply_text(
-                    f"✅ Куратор назначен, но не удалось отправить уведомление.\n"
-                    f"Попросите его нажать /start и создать группу через меню."
+            else:
+                await query.edit_message_text(
+                    "❌ Ошибка при назначении куратора" 
+                    if admin_data["language"] == "ru" else
+                    "❌ Error appointing curator",
+                    reply_markup=admin_back_keyboard(admin_data["language"])
                 )
-        else:
-            await update.message.reply_text(
-                "❌ Ошибка при назначении куратора",
-                reply_markup=admin_back_keyboard(get_cached_user_data(user_id)["language"])
+
+        elif action == "reject":
+            # Отклоняем заявку
+            await query.edit_message_text(
+                "❌ Заявка отклонена." 
+                if admin_data["language"] == "ru" else
+                "❌ Application rejected.",
+                reply_markup=admin_back_keyboard(admin_data["language"])
             )
 
-    except ValueError:
-        await update.message.reply_text(
-            "❌ user_id должен состоять только из цифр",
-            reply_markup=admin_back_keyboard(get_cached_user_data(user_id)["language"])
+            # Уведомляем пользователя об отклонении
+            curator_data = get_cached_user_data(curator_id)
+            await context.bot.send_message(
+                curator_id,
+                "❌ Ваша заявка на кураторство была отклонена администратором." 
+                if curator_data["language"] == "ru" else
+                "❌ Your curator application has been rejected by administrator.",
+                reply_markup=main_menu_keyboard(curator_data["language"], False)
+            )
+
+    except Exception as e:
+        logger.error(f"Error handling curator approval: {e}")
+        await query.edit_message_text(
+            "❌ Произошла ошибка при обработке заявки." 
+            if admin_data["language"] == "ru" else
+            "❌ An error occurred while processing the application.",
+            reply_markup=admin_back_keyboard(admin_data["language"])
         )
 
     return ConversationHandler.END
-    
+
 async def curator_create_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Начать процесс создания группы куратором"""
     query = update.callback_query
@@ -872,10 +1121,10 @@ async def curator_create_group(update: Update, context: ContextTypes.DEFAULT_TYP
         parse_mode='Markdown'
     )
 
-    return CHOOSING_COURSE_FOR_GROUP
+    return NEW_CURATOR_COURSE
 
-async def handle_course_selection_for_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка выбора курса для создания группы"""
+async def handle_new_curator_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка выбора курса новым куратором"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -903,10 +1152,10 @@ async def handle_course_selection_for_group(update: Update, context: ContextType
         ])
     )
     
-    return TYPING_GROUP_NAME
+    return NEW_CURATOR_GROUP
 
-async def handle_group_name_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка ввода названия группы куратором"""
+async def handle_new_curator_group_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка ввода названия группы новым куратором"""
     user_id = update.effective_user.id
     group_name = update.message.text.strip()
     
@@ -923,6 +1172,19 @@ async def handle_group_name_input(update: Update, context: ContextTypes.DEFAULT_
     # Создаем полное название группы с курсом: "2/Б-18"
     full_group_name = f"{course}/{group_name}"
 
+    # Проверяем, не существует ли уже такая группа
+    all_groups = get_all_groups()
+    if full_group_name in all_groups:
+        await update.message.reply_text(
+            f"❌ Группа '{full_group_name}' уже существует!\n"
+            "Пожалуйста, выберите другое название." 
+            if user_data["language"] == "ru" else
+            f"❌ Group '{full_group_name}' already exists!\n"
+            "Please choose a different name.",
+            reply_markup=curator_welcome_keyboard(user_data["language"])
+        )
+        return ConversationHandler.END
+
     # Архивируем старый лист если он есть
     old_group = user_data.get("group")
     if old_group and old_group in gsh.sheets:
@@ -935,6 +1197,25 @@ async def handle_group_name_input(update: Update, context: ContextTypes.DEFAULT_
         # Устанавливаем группу и курс куратору
         update_cached_user_data(user_id, "group", full_group_name)
         update_cached_user_data(user_id, "course", course)
+
+        # Отправляем памятку куратору
+        curator_guide = (
+            "📋 *ПАМЯТКА ДЛЯ КУРАТОРА*\n\n"
+            "• ✍️ *Детали задания:* Необязательное поле, можно пропустить\n"
+            "• 📖 *Открытая книга:* Нажатие на 📖 означает 'можно пользоваться материалами'\n"
+            "• 📕 *Закрытая книга:* Нажатие на 📕 означает 'без материалов'\n"
+            "• 💯 *Баллы:* Указываются баллы от курса за это задание\n"
+            "• ⏰ *Время:* 'По расписанию' означает дедлайн в конце дня\n\n"
+            "Теперь вы можете добавлять задания для вашей группы!"
+            if user_data["language"] == "ru" else
+            "📋 *CURATOR GUIDE*\n\n"
+            "• ✍️ *Details:* Optional field, can be skipped\n"
+            "• 📖 *Open book:* Clicking 📖 means 'materials allowed'\n"
+            "• 📕 *Closed book:* Clicking 📕 means 'no materials allowed'\n"
+            "• 💯 *Points:* Course points for this task\n"
+            "• ⏰ *Time:* 'By schedule' means deadline at the end of the day\n\n"
+            "Now you can add tasks for your group!"
+        )
 
         await update.message.reply_text(
             f"✅ *Группа создана успешно!*\n\n"
@@ -960,6 +1241,12 @@ async def handle_group_name_input(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=main_menu_keyboard(user_data["language"], True)
         )
 
+        # Отправляем памятку отдельным сообщением
+        await update.message.reply_text(
+            curator_guide,
+            parse_mode='Markdown'
+        )
+
         # Инвалидируем кэш групп
         invalidate_sheet_cache()
 
@@ -974,6 +1261,9 @@ async def handle_group_name_input(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=main_menu_keyboard(user_data["language"], True)
         )
 
+    # Очищаем временные данные
+    context.user_data.pop("creating_group_course", None)
+    
     return ConversationHandler.END
 
 async def admin_list_curators(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1001,8 +1291,17 @@ async def admin_list_curators(update: Update, context: ContextTypes.DEFAULT_TYPE
     response = "📋 *СПИСОК КУРАТОРОВ:*\n\n" if user_data["language"] == "ru" else "📋 *CURATORS LIST:*\n\n"
 
     for curator in curators:
-        status = f"Группа: {curator['group']}" if curator['group'] else "Группа не создана"
-        response += f"• ID: {curator['user_id']} | {status}\n"
+        try:
+            # Получаем информацию о пользователе для отображения имени
+            curator_chat = await context.bot.get_chat(int(curator['user_id']))
+            curator_name = f"{curator_chat.first_name} {curator_chat.last_name or ''}".strip()
+            curator_username = f"@{curator_chat.username}" if curator_chat.username else "нет username"
+            
+            status = f"Группа: {curator['group']}" if curator['group'] else "Группа не создана"
+            response += f"• {curator_name} ({curator_username}) | {status}\n"
+        except Exception as e:
+            logger.error(f"Error getting chat info for curator {curator['user_id']}: {e}")
+            response += f"• ID: {curator['user_id']} | Группа: {curator['group']}\n"
 
     await query.edit_message_text(
         response, 
@@ -1010,8 +1309,8 @@ async def admin_list_curators(update: Update, context: ContextTypes.DEFAULT_TYPE
         reply_markup=admin_back_keyboard(user_data["language"])
     )
 
-async def admin_new_semester(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Запуск нового семестра"""
+async def admin_new_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Запуск нового учебного года"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -1024,32 +1323,30 @@ async def admin_new_semester(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # Подтверждение
     confirm_keyboard = [
-        [InlineKeyboardButton("✅ Да, начать новый семестр" if user_data["language"] == "ru" else "✅ Yes, start new semester", callback_data="confirm_new_semester")],
+        [InlineKeyboardButton("✅ Да, начать новый год" if user_data["language"] == "ru" else "✅ Yes, start new year", callback_data="confirm_new_year")],
         [InlineKeyboardButton("❌ Отмена" if user_data["language"] == "ru" else "❌ Cancel", callback_data="admin_panel")]
     ]
 
     await query.edit_message_text(
-        "🎓 *НОВЫЙ СЕМЕСТР*\n\n"
-        "Это действие:\n"
-        "• Архивирует все текущие листы групп\n"
-        "• Сбросит группы у всех кураторов\n"
-        "• Попросит кураторов создать новые группы\n"
-        "• Создаст новые чистые листы\n\n"
+        "🎓 *НОВЫЙ УЧЕБНЫЙ ГОД*\n\n"
+        "⚠️ *ВНИМАНИЕ:* Это действие:\n"
+        "• 🗑️ БЕЗВОЗВРАТНО УДАЛИТ все листы групп\n"
+        "• 🔄 Сбросит группы у всех кураторов\n"
+        "• 📝 Попросит кураторов создать новые группы\n\n"
         "Продолжить?" 
         if user_data["language"] == "ru" else 
-        "🎓 *NEW SEMESTER*\n\n"
-        "This action will:\n"
-        "• Archive all current group sheets\n"
-        "• Reset groups for all curators\n"
-        "• Ask curators to create new groups\n"
-        "• Create new clean sheets\n\n"
+        "🎓 *NEW ACADEMIC YEAR*\n\n"
+        "⚠️ *WARNING:* This action will:\n"
+        "• 🗑️ PERMANENTLY DELETE all group sheets\n"
+        "• 🔄 Reset groups for all curators\n"
+        "• 📝 Ask curators to create new groups\n\n"
         "Continue?",
         reply_markup=InlineKeyboardMarkup(confirm_keyboard),
         parse_mode='Markdown'
     )
 
-async def confirm_new_semester(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Подтверждение начала нового семестра"""
+async def confirm_new_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Подтверждение начала нового учебного года"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -1061,15 +1358,15 @@ async def confirm_new_semester(update: Update, context: ContextTypes.DEFAULT_TYP
     user_data = get_cached_user_data(user_id)
 
     try:
-        # Архивируем все активные листы групп
+        # Удаляем все активные листы групп
         curators = get_all_curators()
-        archived_count = 0
+        deleted_count = 0
         notified_count = 0
 
         for curator in curators:
             if curator['group'] and curator['group'] in gsh.sheets:
-                if gsh.archive_worksheet(curator['group']):
-                    archived_count += 1
+                if gsh.delete_worksheet(curator['group']):
+                    deleted_count += 1
                 # Сбрасываем группу и курс у куратора
                 update_cached_user_data(int(curator['user_id']), "group", "")
                 update_cached_user_data(int(curator['user_id']), "course", "")
@@ -1080,13 +1377,13 @@ async def confirm_new_semester(update: Update, context: ContextTypes.DEFAULT_TYP
                 curator_lang = curator.get('language', 'ru')
                 await context.bot.send_message(
                     int(curator['user_id']),
-                    "🎓 *НОВЫЙ СЕМЕСТР!*\n\n"
-                    "Данные прошлого семестра архивированы.\n"
-                    "Пожалуйста, создайте новую группу для текущего семестра:" 
+                    "🎓 *НОВЫЙ УЧЕБНЫЙ ГОД!*\n\n"
+                    "Данные прошлого года удалены.\n"
+                    "Пожалуйста, создайте новую группу для текущего учебного года:" 
                     if curator_lang == "ru" else
-                    "🎓 *NEW SEMESTER!*\n\n"
-                    "Last semester data has been archived.\n"
-                    "Please create a new group for the current semester:",
+                    "🎓 *NEW ACADEMIC YEAR!*\n\n"
+                    "Last year data has been deleted.\n"
+                    "Please create a new group for the current academic year:",
                     reply_markup=curator_welcome_keyboard(curator_lang),
                     parse_mode='Markdown'
                 )
@@ -1095,13 +1392,13 @@ async def confirm_new_semester(update: Update, context: ContextTypes.DEFAULT_TYP
                 logger.error(f"Error notifying curator {curator['user_id']}: {e}")
 
         await query.edit_message_text(
-            f"✅ *Новый семестр запущен!*\n\n"
-            f"• Архивировано листов: {archived_count}\n"
+            f"✅ *Новый учебный год запущен!*\n\n"
+            f"• Удалено листов: {deleted_count}\n"
             f"• Уведомлено кураторов: {notified_count}/{len(curators)}\n\n"
             "Все кураторы получили запрос на создание новых групп." 
             if user_data["language"] == "ru" else
-            f"✅ *New semester started!*\n\n"
-            f"• Archived sheets: {archived_count}\n"
+            f"✅ *New academic year started!*\n\n"
+            f"• Deleted sheets: {deleted_count}\n"
             f"• Notified curators: {notified_count}/{len(curators)}\n\n"
             "All curators received a request to create new groups.",
             parse_mode='Markdown',
@@ -1109,11 +1406,11 @@ async def confirm_new_semester(update: Update, context: ContextTypes.DEFAULT_TYP
         )
 
     except Exception as e:
-        logger.error(f"Error starting new semester: {e}")
+        logger.error(f"Error starting new academic year: {e}")
         await query.edit_message_text(
-            "❌ Ошибка при запуске нового семестра" 
+            "❌ Ошибка при запуске нового учебного года" 
             if user_data["language"] == "ru" else
-            "❌ Error starting new semester",
+            "❌ Error starting new academic year",
             reply_markup=admin_keyboard(user_data["language"])
         )
 
@@ -1180,6 +1477,16 @@ async def callback_select_group(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     user_data = get_cached_user_data(query.from_user.id)
+
+    # Проверяем, не является ли пользователь куратором
+    if user_data.get("is_curator", False):
+        await query.edit_message_text(
+            "❌ Кураторы не могут выбирать группы. Вы привязаны к своей группе." 
+            if user_data["language"] == "ru" else
+            "❌ Curators cannot select groups. You are bound to your group.",
+            reply_markup=main_menu_keyboard(user_data["language"], True)
+        )
+        return
     
     await query.edit_message_text(
         "🎓 Выберите ваш курс:" 
@@ -2073,12 +2380,14 @@ def main():
     application.add_handler(CallbackQueryHandler(admin_make_curator, pattern="admin_make_curator"))
     application.add_handler(CallbackQueryHandler(admin_list_curators, pattern="admin_list_curators"))
     application.add_handler(CallbackQueryHandler(admin_stats, pattern="admin_stats"))
-    application.add_handler(CallbackQueryHandler(admin_new_semester, pattern="admin_new_semester"))
-    application.add_handler(CallbackQueryHandler(confirm_new_semester, pattern="confirm_new_semester"))
+    application.add_handler(CallbackQueryHandler(admin_new_year, pattern="admin_new_year"))
+    application.add_handler(CallbackQueryHandler(confirm_new_year, pattern="confirm_new_year"))
+    application.add_handler(CallbackQueryHandler(handle_curator_approval, pattern="^approve_curator_|^reject_curator_"))
 
     # Обработчики для кураторов
+    application.add_handler(CallbackQueryHandler(become_curator, pattern="become_curator"))
     application.add_handler(CallbackQueryHandler(curator_create_group, pattern="curator_create_group"))
-    application.add_handler(CallbackQueryHandler(handle_course_selection_for_group, pattern="^course_[1-4]$"))
+    application.add_handler(CallbackQueryHandler(handle_new_curator_course, pattern="^course_[1-4]$"))
 
     # Обработчик для добавления заданий
     add_task_handler = ConversationHandler(
@@ -2111,11 +2420,12 @@ def main():
         fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
     )
 
-    # Обработчик для назначения кураторов
+    # Обработчик для назначения кураторов по username
     curator_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_make_curator, pattern="admin_make_curator")],
         states={
-            WAITING_FOR_CURATOR_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_curator_id)],
+            WAITING_FOR_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_username_input)],
+            CONFIRM_CURATOR: [CallbackQueryHandler(confirm_make_curator, pattern="confirm_make_curator")]
         },
         fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
     )
@@ -2124,13 +2434,13 @@ def main():
     group_creation_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(curator_create_group, pattern="curator_create_group")],
         states={
-            CHOOSING_COURSE_FOR_GROUP: [CallbackQueryHandler(handle_course_selection_for_group, pattern="^course_[1-4]$")],
-            TYPING_GROUP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_group_name_input)],
+            NEW_CURATOR_COURSE: [CallbackQueryHandler(handle_new_curator_course, pattern="^course_[1-4]$")],
+            NEW_CURATOR_GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_curator_group_name)]
         },
         fallbacks=[CommandHandler("cancel", callback_back_to_menu)],
     )
 
-       # Обработчик для выбора группы студентами - ИСПРАВЛЕНО!
+    # Обработчик для выбора группы студентами
     group_selection_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(callback_select_group, pattern="select_group")],
         states={
@@ -2146,7 +2456,7 @@ def main():
     application.add_handler(group_creation_handler)
     application.add_handler(group_selection_handler)
 
-       # Настраиваем периодическую проверку напоминаний
+    # Настраиваем периодическую проверку напоминаний
     job_queue = application.job_queue
     if job_queue:
         job_queue.run_repeating(
@@ -2162,7 +2472,7 @@ def main():
         first=60
     )
 
-    logger.info("Bot started successfully with caching system!")
+    logger.info("Bot started successfully with new curator system!")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
