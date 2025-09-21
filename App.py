@@ -53,7 +53,8 @@ COURSES = {
     CURATOR_APPLICATION_COURSE, CURATOR_APPLICATION_GROUP,
     ADMIN_CURATOR_GROUP, ADMIN_CURATOR_COURSE,
     # Стейты для процесса создания группы после назначения
-    NEW_CURATOR_COURSE, NEW_CURATOR_GROUP
+    NEW_CURATOR_COURSE, NEW_CURATOR_GROUP,
+    WAITING_FOR_CURATOR_INFO  # ← ДОБАВЬТЕ ЭТУ ПЕРЕМЕННУЮ
 ) = range(16)
 
 # Языки
