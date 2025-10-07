@@ -57,7 +57,7 @@ COURSES = {
 LANGUAGES = {"ru": "Русский", "en": "English"}
 
 # Суперадмины (только твой user_id)
-SUPER_ADMINS = [106261688]  # Замени на свой user_id
+SUPER_ADMINS = [1062616885]  # Замени на свой user_id
 
 # ==================== КЭШ ====================
 SHEETS_CACHE = {}
