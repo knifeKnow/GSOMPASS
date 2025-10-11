@@ -45,9 +45,6 @@ LANGUAGES = {"ru": "Русский", "en": "English"}
 # Доступные группы (теперь будут создаваться автоматически)
 ALLOWED_GROUPS = []
 
-# Суперадмины (только твой user_id)
-SUPER_ADMINS = [1062616885]  # Замени на свой user_id
-
 # ==================== КЛАСС ДЛЯ РАБОТЫ С GOOGLE SHEETS ====================
 class GoogleSheetsHelper:
     def __init__(self):
@@ -224,11 +221,12 @@ def get_user_data(user_id):
                 "reminders_enabled": len(user_row) > 2 and user_row[2].lower() == 'true',
                 "language": user_row[3] if len(user_row) > 3 and user_row[3] in LANGUAGES else "ru",
                 "feedback": user_row[4] if len(user_row) > 4 else "",
-                "is_curator": len(user_row) > 5 and user_row[5].lower() == 'true'
+                "is_curator": len(user_row) > 5 and user_row[5].lower() == 'true',
+                "is_superadmin": len(user_row) > 6 and user_row[6].lower() == 'true'
             }
     except Exception as e:
         logger.error(f"Error getting user data: {e}")
-    return {"group": None, "reminders_enabled": True, "language": "ru", "feedback": "", "is_curator": False}
+    return {"group": None, "reminders_enabled": True, "language": "ru", "feedback": "", "is_curator": False, "is_superadmin": False}
 
 def update_user_data(user_id, field, value):
     """Обновить данные пользователя"""
@@ -242,7 +240,8 @@ def update_user_data(user_id, field, value):
                 "reminders_enabled": 3, 
                 "language": 4, 
                 "feedback": 5,
-                "is_curator": 6
+                "is_curator": 6,
+                "is_superadmin": 7
             }.get(field, 2)
             
             # Обновляем ячейку
@@ -261,7 +260,7 @@ def add_new_user(user_id):
             return True
             
         # Добавляем нового пользователя
-        new_user = [str(user_id), "", "TRUE", "ru", "", "FALSE"]
+        new_user = [str(user_id), "", "TRUE", "ru", "", "FALSE", "FALSE"]
         gsh.update_sheet("Users", new_user)
         return True
     except Exception as e:
@@ -285,11 +284,24 @@ def get_all_curators():
         logger.error(f"Error getting curators: {e}")
         return []
 
+def get_all_superadmins():
+    """Получить список всех суперадминов"""
+    try:
+        users = gsh.get_sheet_data("Users")
+        superadmins = []
+        for row in users[1:]:  # Пропускаем заголовок
+            if len(row) > 6 and row[6].lower() == 'true':
+                superadmins.append(int(row[0]))
+        return superadmins
+    except Exception as e:
+        logger.error(f"Error getting superadmins: {e}")
+        return []
+
 # ==================== КЛАВИАТУРЫ ====================
-def main_menu_keyboard(user_lang="ru", is_curator=False):
+def main_menu_keyboard(user_lang="ru", is_curator=False, is_superadmin=False):
     """Клавиатура главного меню с правильным расположением кнопок"""
-    if is_curator:
-        # Для кураторов: все кнопки
+    if is_curator or is_superadmin:
+        # Для кураторов и суперадминов: все кнопки
         keyboard = [
             [InlineKeyboardButton(
                 "📚 Посмотреть задания" if user_lang == "ru" else "📚 View tasks", 
@@ -335,7 +347,7 @@ def main_menu_keyboard(user_lang="ru", is_curator=False):
     
     return InlineKeyboardMarkup(keyboard)
 
-def help_keyboard(user_lang="ru", user_id=None):
+def help_keyboard(user_lang="ru", user_id=None, is_superadmin=False):
     """Клавиатура для раздела помощи/функционала"""
     keyboard = [
         [InlineKeyboardButton(
@@ -350,7 +362,7 @@ def help_keyboard(user_lang="ru", user_id=None):
     ]
     
     # Добавляем кнопку админ-панели только для суперадминов
-    if user_id in SUPER_ADMINS:
+    if is_superadmin:
         keyboard.append([InlineKeyboardButton(
             "👑 Админ-панель" if user_lang == "ru" else "👑 Admin panel", 
             callback_data="admin_panel")])
@@ -442,7 +454,8 @@ def generate_time_keyboard(user_lang="ru"):
         [InlineKeyboardButton("17:45", callback_data="time_17:45"),
          InlineKeyboardButton("19:30", callback_data="time_19:30")],
         [InlineKeyboardButton("23:59", callback_data="time_23:59"),
-         InlineKeyboardButton("By schedule" if user_lang == "en" else "По расписанию", callback_data="time_schedule")],
+         InlineKeyboardButton("По расписанию" if user_lang == "ru" else "By schedule", callback_data="time_schedule")],
+        [InlineKeyboardButton("Другое время" if user_lang == "ru" else "Other time", callback_data="other_time")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -470,8 +483,12 @@ def generate_date_buttons(user_lang="ru"):
 
 def generate_format_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Online", callback_data="Online"),
-         InlineKeyboardButton("Offline", callback_data="Offline")],
+        [
+            InlineKeyboardButton("🖥️ ONLINE", callback_data="Online"),
+            InlineKeyboardButton("🏢 OFFLINE", callback_data="Offline"),
+            InlineKeyboardButton("📖 OPEN-BOOK", callback_data="open-book"),
+            InlineKeyboardButton("📕 CLOSED-BOOK", callback_data="closed-book")
+        ],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
 
@@ -506,7 +523,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         welcome_text,
-        reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]),
+        reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]),
         parse_mode='Markdown'
     )
 
@@ -520,7 +537,7 @@ async def callback_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TY
         "👋 Вы вернулись в главное меню. Выберите действие:" 
         if user_data["language"] == "ru" else 
         "👋 You're back to the main menu. Choose an action:",
-        reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"])
+        reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"])
     )
 
 async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -530,30 +547,13 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     user_data = get_user_data(user_id)
     
-    keyboard = [
-        [InlineKeyboardButton("🔔 Настройки напоминаний" if user_data["language"] == "ru" else "🔔 Reminder settings", 
-                            callback_data="reminder_settings")],
-        [InlineKeyboardButton("🌐 Изменить язык" if user_data["language"] == "ru" else "🌐 Change language", 
-                            callback_data="language_settings")],
-        [InlineKeyboardButton("📝 Оставить фидбэк" if user_data["language"] == "ru" else "📝 Leave feedback", 
-                            callback_data="leave_feedback")],
-    ]
-    
-    # Добавляем кнопку админ-панели только для суперадминов
-    if user_id in SUPER_ADMINS:
-        keyboard.append([InlineKeyboardButton("👑 Админ-панель" if user_data["language"] == "ru" else "👑 Admin panel", 
-                                           callback_data="admin_panel")])
-    
-    keyboard.append([InlineKeyboardButton("↩️ Назад в меню" if user_data["language"] == "ru" else "↩️ Back to menu", 
-                                       callback_data="back_to_menu")])
-    
     help_text = (
         "📌 Возможности бота:\n\n"
         "• 📋 Посмотреть задания своей группы\n"
         "• ➕ Добавить задание (для кураторов)\n"
         "• 🗑️ Удалить задание (для кураторов)\n"
         "• 🗓️ Данные берутся из Google Таблицы\n"
-        "• 🔔 Напоминания о заданиях\n"
+        "• 🔔 Напоминания о заданиями\n"
         "• 👥 Выбор/изменение группы\n"
         "• 📝 Отправить отзыв разработчику\n"
         "• 🔒 Доступ к изменению только у кураторов" 
@@ -571,7 +571,7 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         help_text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=help_keyboard(user_data["language"], user_id, user_data["is_superadmin"])
     )
 
 async def callback_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -580,12 +580,11 @@ async def callback_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     user_id = query.from_user.id
     
-    if user_id not in SUPER_ADMINS:
+    user_data = get_user_data(user_id)
+    if not user_data.get("is_superadmin", False):
         await query.edit_message_text("❌ Доступ запрещен")
         return
         
-    user_data = get_user_data(user_id)
-    
     await query.edit_message_text(
         "👑 *АДМИН-ПАНЕЛЬ*\n\n"
         "Выберите действие:" 
@@ -603,12 +602,11 @@ async def admin_make_curator(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     user_id = query.from_user.id
     
-    if user_id not in SUPER_ADMINS:
+    user_data = get_user_data(user_id)
+    if not user_data.get("is_superadmin", False):
         await query.edit_message_text("❌ Доступ запрещен")
         return
         
-    user_data = get_user_data(user_id)
-    
     await query.edit_message_text(
         "👥 *Назначение куратора*\n\n"
         "Введите user_id пользователя (только цифры):\n\n"
@@ -632,7 +630,8 @@ async def handle_curator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка введенного user_id куратора"""
     user_id = update.effective_user.id
     
-    if user_id not in SUPER_ADMINS:
+    user_data = get_user_data(user_id)
+    if not user_data.get("is_superadmin", False):
         await update.message.reply_text("❌ Доступ запрещен")
         return ConversationHandler.END
         
@@ -728,7 +727,7 @@ async def handle_group_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "• 🗑️ Удаление заданий\n"
             "• 👥 Просмотр заданий вашей группы",
             parse_mode='Markdown',
-            reply_markup=main_menu_keyboard(user_data["language"], True)
+            reply_markup=main_menu_keyboard(user_data["language"], True, user_data["is_superadmin"])
         )
         
     except Exception as e:
@@ -743,11 +742,11 @@ async def admin_list_curators(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
     user_id = query.from_user.id
     
-    if user_id not in SUPER_ADMINS:
+    user_data = get_user_data(user_id)
+    if not user_data.get("is_superadmin", False):
         await query.edit_message_text("❌ Доступ запрещен")
         return
         
-    user_data = get_user_data(user_id)
     curators = get_all_curators()
     
     if not curators:
@@ -768,12 +767,11 @@ async def admin_new_semester(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     user_id = query.from_user.id
     
-    if user_id not in SUPER_ADMINS:
+    user_data = get_user_data(user_id)
+    if not user_data.get("is_superadmin", False):
         await query.edit_message_text("❌ Доступ запрещен")
         return
         
-    user_data = get_user_data(user_id)
-    
     # Подтверждение
     confirm_keyboard = [
         [InlineKeyboardButton("✅ Да, начать новый семестр" if user_data["language"] == "ru" else "✅ Yes, start new semester", callback_data="confirm_new_semester")],
@@ -806,12 +804,11 @@ async def confirm_new_semester(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     user_id = query.from_user.id
     
-    if user_id not in SUPER_ADMINS:
+    user_data = get_user_data(user_id)
+    if not user_data.get("is_superadmin", False):
         await query.edit_message_text("❌ Доступ запрещен")
         return
         
-    user_data = get_user_data(user_id)
-    
     try:
         # Архивируем все активные листы групп
         curators = get_all_curators()
@@ -864,22 +861,23 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
     
-    if user_id not in SUPER_ADMINS:
+    user_data = get_user_data(user_id)
+    if not user_data.get("is_superadmin", False):
         await query.edit_message_text("❌ Доступ запрещен")
         return
         
-    user_data = get_user_data(user_id)
-    
     try:
         users = gsh.get_sheet_data("Users")
         total_users = len(users) - 1  # minus header
         curators = get_all_curators()
+        superadmins = get_all_superadmins()
         active_curators = sum(1 for c in curators if c['group'])
         
         response = (
             f"📊 *СТАТИСТИКА БОТА*\n\n"
             f"• Всего пользователей: {total_users}\n"
             f"• Кураторов: {len(curators)}\n"
+            f"• Суперадминов: {len(superadmins)}\n"
             f"• Активных кураторов (с группой): {active_curators}\n"
             f"• Всего листов: {len(gsh.sheets)}\n\n"
             f"*Группы с заданиями:*\n"
@@ -947,7 +945,11 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
             if deadline > datetime.now(MOSCOW_TZ):
                 count += 1
                 
+                # Исправление: показываем "По расписанию" вместо "23:59"
                 time_display = row[5]
+                if time_display == "23:59":
+                    time_display = "По расписанию" if user_data["language"] == "ru" else "By schedule"
+                
                 book_icon = "📖" if len(row) > 7 and row[7] == "open-book" else "📕"
                 
                 details = ""
@@ -981,7 +983,7 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
                 callback_data="back_to_menu")])
             reply_markup = InlineKeyboardMarkup(keyboard)
         else:
-            reply_markup = main_menu_keyboard(user_data["language"], user_data["is_curator"])
+            reply_markup = main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"])
 
         await query.edit_message_text(response, parse_mode='Markdown', reply_markup=reply_markup)
     except Exception as e:
@@ -991,8 +993,8 @@ async def show_tasks_for_group(query, group, show_delete_buttons=False):
             f"⛔ Ошибка при получении заданий: {str(e)}" 
             if user_data["language"] == "ru" else 
             f"⛔ Error getting tasks: {str(e)}",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
-        
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
+
 async def callback_get_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Получить данные о заданиях"""
     query = update.callback_query
@@ -1044,7 +1046,7 @@ async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ Ваша группа установлена: {group}" 
             if user_data["language"] == "ru" else 
             f"✅ Your group is set: {group}",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
         
         if user_data["reminders_enabled"]:
             await schedule_reminders_for_user(context.application.job_queue, user_id)
@@ -1054,7 +1056,7 @@ async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛔ Произошла ошибка при установке группы." 
             if user_data["language"] == "ru" else 
             "⛔ An error occurred while setting the group.",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
 
 async def format_task_message(context):
     task_data = context.user_data.get("task_data", {})
@@ -1066,11 +1068,10 @@ async def format_task_message(context):
     message += f"🔹 <b>Макс. баллы:</b> {task_data.get('max_points', 'не выбрано' if user_data['language'] == 'ru' else 'not selected')}\n"
     message += f"🔹 <b>Дата:</b> {task_data.get('date', 'не выбрана' if user_data['language'] == 'ru' else 'not selected')}\n"
     
+    # Исправление: показываем "По расписанию" вместо "23:59"
     time_display = task_data.get('time', 'не выбрано' if user_data['language'] == 'ru' else 'not selected')
     if time_display == "23:59":
-        time_display = "By schedule" if user_data['language'] == "en" else "По расписанию"
-    elif time_display == "time_schedule":
-        time_display = "By schedule" if user_data['language'] == "en" else "По расписанию"
+        time_display = "По расписанию" if user_data['language'] == "ru" else "By schedule"
     message += f"🔹 <b>Время:</b> {time_display}\n"
     
     message += f"🔹 <b>Формат:</b> {task_data.get('format', 'не выбран' if user_data['language'] == 'ru' else 'not selected')}\n"
@@ -1090,7 +1091,7 @@ async def callback_add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_data.get("is_curator", False):
         await query.edit_message_text(
             "⛔ У вас нет доступа к добавлению заданий." if user_data["language"] == "ru" else "⛔ You don't have access to add tasks.",
-            reply_markup=main_menu_keyboard(user_data["language"], False))
+            reply_markup=main_menu_keyboard(user_data["language"], False, user_data["is_superadmin"]))
         return ConversationHandler.END
 
     # Проверяем что куратор установил группу
@@ -1225,8 +1226,11 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     elif query.data.startswith("time_"):
         time_value = query.data[5:]
+        # Исправление: сохраняем "По расписанию"/"By schedule" как есть
         if time_value == "schedule":
-            time_value = "23:59"
+            time_value = "По расписанию" if user_data["language"] == "ru" else "By schedule"
+        else:
+            time_value = time_value.replace("_", ":")
         context.user_data["task_data"]["time"] = time_value
         message = await format_task_message(context)
         await query.edit_message_text(
@@ -1258,6 +1262,10 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text("🗓️ Введите дату в формате ДД.ММ (например, 15.12):" if user_data["language"] == "ru" else "🗓️ Enter date in DD.MM format (e.g., 15.12):")
         context.user_data["waiting_for"] = "date"
         return WAITING_FOR_INPUT
+    elif query.data == "other_time":
+        await query.edit_message_text("⏰ Введите время в формате ЧЧ:ММ (например, 14:30):" if user_data["language"] == "ru" else "⏰ Enter time in HH:MM format (e.g., 14:30):")
+        context.user_data["waiting_for"] = "time"
+        return WAITING_FOR_INPUT
     elif query.data == "save_task":
         task_data = context.user_data.get("task_data", {})
         if (task_data["subject"] == ("не выбрано" if user_data["language"] == "ru" else "not selected") or 
@@ -1276,13 +1284,18 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         group = task_data["group"]
         
         try:
+            # Исправление: сохраняем "По расписанию"/"By schedule" как есть, а не "23:59"
+            time_to_save = task_data["time"]
+            if time_to_save in ["По расписанию", "By schedule"]:
+                time_to_save = "По расписанию" if user_data["language"] == "ru" else "By schedule"
+            
             row_data = [
                 task_data["subject"],
                 task_data["task_type"],
                 task_data["format"],
                 task_data["max_points"],
                 task_data["date"],
-                task_data["time"],
+                time_to_save,  # Исправленное время
                 group,
                 task_data["book_type"],
                 task_data.get("details", "")
@@ -1296,18 +1309,18 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             
             await query.edit_message_text(
                 "✅ Задание успешно добавлено!" if user_data["language"] == "ru" else "✅ Task added successfully!",
-                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
         except Exception as e:
             logger.error(f"Ошибка при сохранении задания: {e}")
             await query.edit_message_text(
                 f"⛔ Произошла ошибка при сохранении: {str(e)}" if user_data["language"] == "ru" else f"⛔ Error saving: {str(e)}",
-                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
         return ConversationHandler.END
     elif query.data == "cancel_task":
         context.user_data.clear()
         await query.edit_message_text(
             "🚫 Добавление задания отменено." if user_data["language"] == "ru" else "🚫 Task addition canceled.",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
         return ConversationHandler.END
     
     return EDITING_TASK
@@ -1338,6 +1351,28 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ Неверный формат даты. Введите дату в формате ДД.ММ (например, 15.12)" if user_data["language"] == "ru" else 
                 "⚠️ Wrong date format. Enter date in DD.MM format (e.g., 15.12)")
             return WAITING_FOR_INPUT
+    elif waiting_for == "time":
+        # Проверяем формат времени
+        try:
+            if ":" in user_input:
+                hours, minutes = user_input.split(':')
+                if 0 <= int(hours) <= 23 and 0 <= int(minutes) <= 59:
+                    context.user_data["task_data"]["time"] = user_input
+                else:
+                    await update.message.reply_text(
+                        "⚠️ Неверное время. Часы должны быть от 0 до 23, минуты от 0 до 59" if user_data["language"] == "ru" else 
+                        "⚠️ Wrong time. Hours should be 0-23, minutes 0-59")
+                    return WAITING_FOR_INPUT
+            else:
+                await update.message.reply_text(
+                    "⚠️ Неверный формат времени. Используйте ЧЧ:ММ (например, 14:30)" if user_data["language"] == "ru" else 
+                    "⚠️ Wrong time format. Use HH:MM (e.g., 14:30)")
+                return WAITING_FOR_INPUT
+        except:
+            await update.message.reply_text(
+                "⚠️ Неверный формат времени. Используйте ЧЧ:ММ (например, 14:30)" if user_data["language"] == "ru" else 
+                "⚠️ Wrong time format. Use HH:MM (e.g., 14:30)")
+            return WAITING_FOR_INPUT
     elif waiting_for == "details":
         context.user_data["task_data"]["details"] = user_input
     
@@ -1362,7 +1397,7 @@ async def callback_delete_task(update: Update, context: ContextTypes.DEFAULT_TYP
     if not user_data.get("is_curator", False):
         await query.edit_message_text(
             "⛔ У вас нет доступа к удалению заданий." if user_data["language"] == "ru" else "⛔ You don't have access to delete tasks.",
-            reply_markup=main_menu_keyboard(user_data["language"], False))
+            reply_markup=main_menu_keyboard(user_data["language"], False, user_data["is_superadmin"]))
         return ConversationHandler.END
 
     # Проверяем что куратор установил группу
@@ -1396,19 +1431,19 @@ async def handle_task_deletion(update: Update, context: ContextTypes.DEFAULT_TYP
                 
                 await query.edit_message_text(
                     "✅ Задание успешно удалено!" if user_data["language"] == "ru" else "✅ Task deleted successfully!",
-                    reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                    reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
                 
                 # Обновляем напоминания для всех пользователей группы
                 await refresh_reminders_for_group(context.application.job_queue, group)
             else:
                 await query.edit_message_text(
                     "⛔ Задание уже было удалено" if user_data["language"] == "ru" else "⛔ Task was already deleted",
-                    reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                    reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
         except Exception as e:
             logger.error(f"Ошибка при удалении задания: {e}")
             await query.edit_message_text(
                 f"⛔ Ошибка при удалении: {str(e)}" if user_data["language"] == "ru" else f"⛔ Error deleting: {str(e)}",
-                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
     
     return ConversationHandler.END
 
@@ -1440,7 +1475,7 @@ async def callback_reminder_settings(update: Update, context: ContextTypes.DEFAU
         logger.error(f"Ошибка в callback_reminder_settings: {e}")
         await query.edit_message_text(
             "⛔ Произошла ошибка при получении настроек." if user_data["language"] == "ru" else "⛔ Error getting settings.",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
 
 async def toggle_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1457,12 +1492,12 @@ async def toggle_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.edit_message_text(
             f"✅ Напоминания {'включены' if new_state else 'выключены'}!" if user_data["language"] == "ru" else f"✅ Reminders {'enabled' if new_state else 'disabled'}!",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
     except Exception as e:
         logger.error(f"Ошибка в toggle_reminders: {e}")
         await query.edit_message_text(
             "⛔ Произошла ошибка при изменении настроек." if user_data["language"] == "ru" else "⛔ Error changing settings.",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
 
 async def schedule_reminders_for_user(job_queue: JobQueue, user_id: int):
     """Запланировать напоминания для пользователя"""
@@ -1570,8 +1605,10 @@ async def send_daily_reminder(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
         message += f"{day_header}\n"
         
         for task in tasks_by_days[days_left]:
-            # Просто показываем время как есть (без года)
+            # Исправление: показываем "По расписанию" вместо "23:59"
             time_display = task['time']
+            if time_display == "23:59":
+                time_display = "По расписанию" if user_data["language"] == "ru" else "By schedule"
                 
             book_icon = "📖" if task.get('book_type') == "open-book" else "📕"
             
@@ -1653,13 +1690,13 @@ async def set_user_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_data = get_user_data(user_id)
             await query.edit_message_text(
                 "✅ Язык изменен на русский!" if user_data["language"] == "ru" else "✅ Language changed to English!",
-                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
     except Exception as e:
         logger.error(f"Ошибка при изменении языка: {e}")
         user_data = get_user_data(user_id)
         await query.edit_message_text(
             "⛔ Произошла ошибка при изменении языка." if user_data["language"] == "ru" else "⛔ Error changing language.",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
 
 # ==================== СИСТЕМА ОБРАТНОЙ СВЯЗИ ====================
 async def callback_leave_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1684,18 +1721,18 @@ async def handle_feedback_input(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text(
                 "✅ Спасибо за ваш отзыв! Мы учтем ваши пожелания." if user_data["language"] == "ru" else 
                 "✅ Thank you for your feedback! We'll take it into account.",
-                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
         else:
             await update.message.reply_text(
                 "⛔ Не удалось сохранить отзыв. Попробуйте позже." if user_data["language"] == "ru" else 
                 "⛔ Failed to save feedback. Please try again later.",
-                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+                reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
     except Exception as e:
         logger.error(f"Ошибка при сохранении фидбэка: {e}")
         await update.message.reply_text(
             "⛔ Произошла ошибка при сохранении отзыва." if user_data["language"] == "ru" else 
             "⛔ An error occurred while saving feedback.",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
     
     return ConversationHandler.END
 
@@ -1706,7 +1743,7 @@ async def cancel_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         "🚫 Отправка отзыва отменена." if user_data["language"] == "ru" else "🚫 Feedback submission canceled.",
-        reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"]))
+        reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
     return ConversationHandler.END
 
 # ==================== ОСНОВНАЯ ФУНКЦИЯ ====================
