@@ -385,6 +385,7 @@ def admin_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup(keyboard)
 
 def generate_edit_task_keyboard(user_lang="ru"):
+    """Клавиатура для редактирования задания с 4 кнопками в одной строке"""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("✍️ Предмет" if user_lang == "ru" else "✍️ Subject", callback_data="edit_subject"),
@@ -396,15 +397,13 @@ def generate_edit_task_keyboard(user_lang="ru"):
         ],
         [
             InlineKeyboardButton("⏰ Время" if user_lang == "ru" else "⏰ Time", callback_data="edit_time"),
-            InlineKeyboardButton("📍 Формат" if user_lang == "ru" else "📍 Format", callback_data="edit_format")
+            InlineKeyboardButton("📝 Детали" if user_lang == "ru" else "📝 Details", callback_data="edit_details")
         ],
         [
             InlineKeyboardButton("📖", callback_data="open-book"),
             InlineKeyboardButton("📕", callback_data="closed-book"),
-            InlineKeyboardButton(
-                "📝 Детали (опционально)" if user_lang == "ru" else "📝 Details (optional)", 
-                callback_data="edit_details"
-            )
+            InlineKeyboardButton("Online", callback_data="format_Online"),
+            InlineKeyboardButton("Offline", callback_data="format_Offline")
         ],
         [
             InlineKeyboardButton("✅ Сохранить" if user_lang == "ru" else "✅ Save", callback_data="save_task"),
@@ -412,7 +411,7 @@ def generate_edit_task_keyboard(user_lang="ru"):
         ]
     ])
 
-# Генераторы клавиатур для редактирования задания (остаются без изменений)
+# Генераторы клавиатур для редактирования задания
 def generate_subject_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Entrepreneurship", callback_data="Entrepreneurship"),
@@ -480,17 +479,6 @@ def generate_date_buttons(user_lang="ru"):
     buttons.append([InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")])
     
     return InlineKeyboardMarkup(buttons)
-
-def generate_format_keyboard(user_lang="ru"):
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🖥️ ONLINE", callback_data="Online"),
-            InlineKeyboardButton("🏢 OFFLINE", callback_data="Offline"),
-            InlineKeyboardButton("📖 OPEN-BOOK", callback_data="open-book"),
-            InlineKeyboardButton("📕 CLOSED-BOOK", callback_data="closed-book")
-        ],
-        [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
-    ])
 
 def generate_details_keyboard(user_lang="ru"):
     return InlineKeyboardMarkup([
@@ -1152,11 +1140,6 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             "⏰ Выберите время:" if user_data["language"] == "ru" else "⏰ Select time:",
             reply_markup=generate_time_keyboard(user_data["language"])
         )
-    elif query.data == "edit_format":
-        await query.edit_message_text(
-            "📍 Выберите формат:" if user_data["language"] == "ru" else "📍 Select format:",
-            reply_markup=generate_format_keyboard(user_data["language"])
-        )
     elif query.data == "edit_details":
         await query.edit_message_text(
             "📝 Выберите детали:" if user_data["language"] == "ru" else "📝 Select details:",
@@ -1171,6 +1154,15 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     elif query.data in ["open-book", "closed-book"]:
         context.user_data["task_data"]["book_type"] = query.data
+        message = await format_task_message(context)
+        await query.edit_message_text(
+            message,
+            reply_markup=generate_edit_task_keyboard(user_data["language"]),
+            parse_mode='HTML'
+        )
+    elif query.data.startswith("format_"):
+        format_value = query.data[7:]  # Убираем "format_" префикс
+        context.user_data["task_data"]["format"] = format_value
         message = await format_task_message(context)
         await query.edit_message_text(
             message,
@@ -1232,14 +1224,6 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
         else:
             time_value = time_value.replace("_", ":")
         context.user_data["task_data"]["time"] = time_value
-        message = await format_task_message(context)
-        await query.edit_message_text(
-            message,
-            reply_markup=generate_edit_task_keyboard(user_data["language"]),
-            parse_mode='HTML'
-        )
-    elif query.data in ["Online", "Offline"]:
-        context.user_data["task_data"]["format"] = query.data
         message = await format_task_message(context)
         await query.edit_message_text(
             message,
