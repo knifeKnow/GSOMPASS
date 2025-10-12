@@ -303,7 +303,7 @@ def get_groups_by_course(course_id):
         groups_data = gsh.get_sheet_data("Groups")
         groups = []
         for row in groups_data[1:]:  # Пропускаем заголовок
-            if len(row) >= 3 and row[1] == str(course_id) and row[2].lower() == "active":
+            if len(row) >= 6 and row[1] == str(course_id) and row[5].lower() == "active":
                 groups.append(row[2])  # Group name
         return groups
     except Exception as e:
