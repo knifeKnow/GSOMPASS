@@ -297,6 +297,51 @@ def get_all_superadmins():
         logger.error(f"Error getting superadmins: {e}")
         return []
 
+def get_groups_by_course(course_id):
+    """Получить список групп по ID курса"""
+    try:
+        groups_data = gsh.get_sheet_data("Groups")
+        groups = []
+        for row in groups_data[1:]:  # Пропускаем заголовок
+            if len(row) >= 3 and row[1] == str(course_id) and row[2].lower() == "active":
+                groups.append(row[2])  # Group name
+        return groups
+    except Exception as e:
+        logger.error(f"Error getting groups by course: {e}")
+        return []
+
+def get_all_courses():
+    """Получить список всех курсов"""
+    try:
+        groups_data = gsh.get_sheet_data("Groups")
+        courses = {}
+        for row in groups_data[1:]:  # Пропускаем заголовок
+            if len(row) >= 3 and row[2].lower() == "active":
+                course_id = row[1]
+                course_name = f"Course {course_id}"  # Можно добавить названия курсов если будут в таблице
+                if course_id not in courses:
+                    courses[course_id] = course_name
+        return courses
+    except Exception as e:
+        logger.error(f"Error getting courses: {e}")
+        return {}
+
+def add_group_to_sheet(group_name, course_id, curator_id, curator_username):
+    """Добавить группу в лист Groups"""
+    try:
+        # Проверяем, есть ли уже группа
+        groups_data = gsh.get_sheet_data("Groups")
+        if any(row[2] == group_name for row in groups_data if len(row) > 2):
+            return True  # Группа уже существует
+            
+        # Добавляем новую группу
+        new_group = [str(len(groups_data)), str(course_id), group_name, str(curator_id), curator_username, "active"]
+        gsh.update_sheet("Groups", new_group)
+        return True
+    except Exception as e:
+        logger.error(f"Error adding group to sheet: {e}")
+        return False
+
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard(user_lang="ru", is_curator=False, is_superadmin=False):
     """Клавиатура главного меню с правильным расположением кнопок"""
@@ -380,7 +425,7 @@ def admin_keyboard(user_lang="ru"):
         [InlineKeyboardButton("📋 Список кураторов" if user_lang == "ru" else "📋 Curators list", callback_data="admin_list_curators")],
         [InlineKeyboardButton("📊 Статистика" if user_lang == "ru" else "📊 Statistics", callback_data="admin_stats")],
         [InlineKeyboardButton("🎓 Новый семестр" if user_lang == "ru" else "🎓 New semester", callback_data="admin_new_semester")],
-        [InlineKeyboardButton("↩️ Назад" if user_lang == "ru" else "↩️ Back", callback_data="back_to_menu")]
+        [InlineKeyboardButton("↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", callback_data="back_to_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -488,6 +533,48 @@ def generate_details_keyboard(user_lang="ru"):
         [InlineKeyboardButton("Другое" if user_lang == "ru" else "Other", callback_data="other_details")],
         [InlineKeyboardButton("↩️ Назад к редактированию" if user_lang == "ru" else "↩️ Back to editing", callback_data="back_to_editing")]
     ])
+
+def generate_courses_keyboard(user_lang="ru"):
+    """Клавиатура для выбора курса"""
+    courses = get_all_courses()
+    keyboard = []
+    
+    for course_id, course_name in courses.items():
+        keyboard.append([InlineKeyboardButton(
+            course_name, 
+            callback_data=f"select_course_{course_id}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton(
+        "↩️ Назад в меню" if user_lang == "ru" else "↩️ Back to menu", 
+        callback_data="back_to_menu"
+    )])
+    
+    return InlineKeyboardMarkup(keyboard)
+
+def generate_groups_keyboard(course_id, user_lang="ru"):
+    """Клавиатура для выбора группы в курсе"""
+    groups = get_groups_by_course(course_id)
+    keyboard = []
+    
+    for group in groups:
+        keyboard.append([InlineKeyboardButton(
+            group, 
+            callback_data=f"set_group_{group}"
+        )])
+    
+    if not groups:
+        keyboard.append([InlineKeyboardButton(
+            "ℹ️ Нет доступных групп" if user_lang == "ru" else "ℹ️ No groups available", 
+            callback_data="no_groups"
+        )])
+    
+    keyboard.append([InlineKeyboardButton(
+        "↩️ Назад к выбору курса" if user_lang == "ru" else "↩️ Back to course selection", 
+        callback_data="select_group"
+    )])
+    
+    return InlineKeyboardMarkup(keyboard)
 
 # ==================== ОСНОВНЫЕ ОБРАБОТЧИКИ ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -676,7 +763,7 @@ async def handle_curator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_group_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка ввода названия группы от куратора"""
     user_id = update.effective_user.id
-    group_name = update.message.text.strip().upper()  # Приводим к верхнему регистру
+    group_name = update.message.text.strip().upper()  # Приводим к верхнему регирустру
     
     user_data = get_user_data(user_id)
     if not user_data.get("is_curator", False):
@@ -703,12 +790,30 @@ async def handle_group_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         gsh.create_worksheet(group_name)
         
+        # Автоматически определяем курс из названия группы (первая буква)
+        course_id = "2"  # По умолчанию курс 2, как в примере
+        if group_name.startswith('B'):
+            course_id = "2"
+        elif group_name.startswith('M'):
+            course_id = "1"
+        # Можно добавить другие курсы по необходимости
+        
+        # Добавляем группу в лист Groups
+        curator_username = update.effective_user.username
+        if not curator_username:
+            curator_username = f"user_{user_id}"
+        else:
+            curator_username = f"@{curator_username}"
+            
+        add_group_to_sheet(group_name, course_id, user_id, curator_username)
+        
         # Устанавливаем группу куратору
         update_user_data(user_id, "group", group_name)
         
         await update.message.reply_text(
             f"✅ *Группа {group_name} установлена!*\n\n"
             f"Лист '{group_name}' создан в таблице.\n"
+            f"Группа добавлена в курс {course_id}.\n"
             f"Старые данные архивированы.\n\n"
             "Теперь вам доступны:\n"
             "• 📝 Добавление заданий\n"
@@ -861,12 +966,17 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         superadmins = get_all_superadmins()
         active_curators = sum(1 for c in curators if c['group'])
         
+        # Получаем статистику по группам из листа Groups
+        groups_data = gsh.get_sheet_data("Groups")
+        active_groups = sum(1 for row in groups_data[1:] if len(row) > 5 and row[5].lower() == "active")
+        
         response = (
             f"📊 *СТАТИСТИКА БОТА*\n\n"
             f"• Всего пользователей: {total_users}\n"
             f"• Кураторов: {len(curators)}\n"
             f"• Суперадминов: {len(superadmins)}\n"
             f"• Активных кураторов (с группой): {active_curators}\n"
+            f"• Активных групп: {active_groups}\n"
             f"• Всего листов: {len(gsh.sheets)}\n\n"
             f"*Группы с заданиями:*\n"
         )
@@ -874,7 +984,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Считаем задания по группам
         group_stats = {}
         for sheet_name in gsh.sheets:
-            if not sheet_name.endswith('Archive') and sheet_name != 'Users':
+            if not sheet_name.endswith('Archive') and sheet_name != 'Users' and sheet_name != 'Groups':
                 data = gsh.get_sheet_data(sheet_name)
                 task_count = len(data) - 1  # minus header
                 group_stats[sheet_name] = task_count
@@ -890,6 +1000,103 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         await query.edit_message_text("❌ Ошибка при получении статистики")
+
+# ==================== СИСТЕМА ВЫБОРА ГРУППЫ ====================
+async def callback_select_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Выбор группы через систему курсов"""
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user_data = get_user_data(query.from_user.id if query else update.effective_user.id)
+    
+    courses = get_all_courses()
+    if not courses:
+        text = "📚 На данный момент нет доступных курсов." if user_data["language"] == "ru" else "📚 No courses available at the moment."
+        if query:
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩️ Назад в меню" if user_data["language"] == "ru" else "↩️ Back to menu", callback_data="back_to_menu")]
+            ]))
+        else:
+            await context.bot.send_message(
+                update.effective_chat.id,
+                text,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("↩️ Назад в меню" if user_data["language"] == "ru" else "↩️ Back to menu", callback_data="back_to_menu")]
+                ])
+            )
+        return
+    
+    text = "🎓 Выберите ваш курс:" if user_data["language"] == "ru" else "🎓 Select your course:"
+    if query:
+        await query.edit_message_text(text, reply_markup=generate_courses_keyboard(user_data["language"]))
+    else:
+        await context.bot.send_message(
+            update.effective_chat.id,
+            text,
+            reply_markup=generate_courses_keyboard(user_data["language"])
+        )
+
+async def select_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка выбора курса"""
+    query = update.callback_query
+    await query.answer()
+    user_data = get_user_data(query.from_user.id)
+    
+    course_id = query.data.replace("select_course_", "")
+    groups = get_groups_by_course(course_id)
+    
+    if not groups:
+        text = f"📝 В курсе {course_id} пока нет созданных групп." if user_data["language"] == "ru" else f"📝 No groups created for course {course_id} yet."
+        await query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩️ Назад к выбору курса" if user_data["language"] == "ru" else "↩️ Back to course selection", callback_data="select_group")]
+            ])
+        )
+        return
+    
+    text = f"👥 Выберите вашу группу в курсе {course_id}:" if user_data["language"] == "ru" else f"👥 Select your group in course {course_id}:"
+    await query.edit_message_text(
+        text,
+        reply_markup=generate_groups_keyboard(course_id, user_data["language"])
+    )
+
+async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Установить группу пользователя"""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "no_groups":
+        user_data = get_user_data(query.from_user.id)
+        await query.edit_message_text(
+            "ℹ️ В выбранном курсе пока нет доступных групп." if user_data["language"] == "ru" else "ℹ️ No groups available in the selected course.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩️ Назад к выбору курса" if user_data["language"] == "ru" else "↩️ Back to course selection", callback_data="select_group")]
+            ])
+        )
+        return
+    
+    user_id = query.from_user.id
+    group = query.data.replace("set_group_", "")
+    
+    if update_user_data(user_id, "group", group):
+        user_data = get_user_data(user_id)
+        await query.edit_message_text(
+            f"✅ Ваша группа установлена: {group}" 
+            if user_data["language"] == "ru" else 
+            f"✅ Your group is set: {group}",
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
+        
+        if user_data["reminders_enabled"]:
+            await schedule_reminders_for_user(context.application.job_queue, user_id)
+    else:
+        user_data = get_user_data(user_id)
+        await query.edit_message_text(
+            "⛔ Произошла ошибка при установке группы." 
+            if user_data["language"] == "ru" else 
+            "⛔ An error occurred while setting the group.",
+            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
 
 # ==================== СИСТЕМА ЗАДАНИЙ ====================
 async def show_tasks_for_group(query, group, show_delete_buttons=False):
@@ -994,57 +1201,6 @@ async def callback_get_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_tasks_for_group(query, user_data["group"])
     else:
         await callback_select_group(update, context)
-
-async def callback_select_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Выбор группы"""
-    query = update.callback_query
-    if query:
-        await query.answer()
-    
-    user_data = get_user_data(query.from_user.id if query else update.effective_user.id)
-    
-    group_keyboard = [
-        [InlineKeyboardButton("B-11", callback_data="set_group_B-11"),
-         InlineKeyboardButton("B-12", callback_data="set_group_B-12")],
-        [InlineKeyboardButton(
-            "↩️ Назад в меню" if user_data["language"] == "ru" else "↩️ Back to menu", 
-            callback_data="back_to_menu")]
-    ]
-    
-    text = "👥 Выберите вашу группу:" if user_data["language"] == "ru" else "👥 Select your group:"
-    if query:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(group_keyboard))
-    else:
-        await context.bot.send_message(
-            update.effective_chat.id,
-            text,
-            reply_markup=InlineKeyboardMarkup(group_keyboard)
-        )
-
-async def set_user_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Установить группу пользователя"""
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    group = query.data.replace("set_group_", "")
-    
-    if update_user_data(user_id, "group", group):
-        user_data = get_user_data(user_id)
-        await query.edit_message_text(
-            f"✅ Ваша группа установлена: {group}" 
-            if user_data["language"] == "ru" else 
-            f"✅ Your group is set: {group}",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
-        
-        if user_data["reminders_enabled"]:
-            await schedule_reminders_for_user(context.application.job_queue, user_id)
-    else:
-        user_data = get_user_data(user_id)
-        await query.edit_message_text(
-            "⛔ Произошла ошибка при установке группы." 
-            if user_data["language"] == "ru" else 
-            "⛔ An error occurred while setting the group.",
-            reply_markup=main_menu_keyboard(user_data["language"], user_data["is_curator"], user_data["is_superadmin"]))
 
 async def format_task_message(context):
     task_data = context.user_data.get("task_data", {})
@@ -1288,7 +1444,7 @@ async def edit_task_parameter(update: Update, context: ContextTypes.DEFAULT_TYPE
             gsh.update_sheet(group, row_data)
             context.user_data.clear()
             
-            # Обновляем напоминания для всех пользователей группы
+                       # Обновляем напоминания для всех пользователей группы
             await refresh_reminders_for_group(context.application.job_queue, group)
             
             await query.edit_message_text(
@@ -1745,7 +1901,8 @@ def main():
     application.add_handler(CallbackQueryHandler(callback_help, pattern="help"))
     application.add_handler(CallbackQueryHandler(callback_back_to_menu, pattern="back_to_menu"))
     application.add_handler(CallbackQueryHandler(callback_select_group, pattern="select_group"))
-    application.add_handler(CallbackQueryHandler(set_user_group, pattern="^set_group_B-11$|^set_group_B-12$"))
+    application.add_handler(CallbackQueryHandler(select_course, pattern="^select_course_"))
+    application.add_handler(CallbackQueryHandler(set_user_group, pattern="^set_group_"))
     application.add_handler(CallbackQueryHandler(callback_admin_panel, pattern="admin_panel"))
 
     # Обработчики настроек
