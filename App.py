@@ -38,9 +38,9 @@ RETRY_DELAY = 5
 # Прокси для обхода блокировок Telegram в РФ
 PROXY_URL = "http://138.68.161.14:3128"  # Публичный прокси сервер
 
-# Стейты для ConversationHandler
-EDITING_TASK, WAITING_FOR_INPUT, WAITING_FOR_FEEDBACK = range(3, 5)
-WAITING_FOR_CURATOR_ID, WAITING_FOR_GROUP_NAME = range(5, 7)
+# Стейты для ConversationHandler - ИСПРАВЛЕННАЯ ЧАСТЬ
+EDITING_TASK, WAITING_FOR_INPUT, WAITING_FOR_FEEDBACK = range(3, 6)
+WAITING_FOR_CURATOR_ID, WAITING_FOR_GROUP_NAME = range(6, 8)
 
 # Языки
 LANGUAGES = {"ru": "Русский", "en": "English"}
@@ -288,6 +288,7 @@ def get_all_curators():
         logger.error(f"Error getting curators: {e}")
         return []
 
+# ... (остальной код остается без изменений, как в предыдущем ответе)
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard(user_lang="ru", is_curator=False):
     """Клавиатура главного меню с правильным расположением кнопок"""
