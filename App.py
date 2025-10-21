@@ -35,9 +35,12 @@ REMINDER_CHECK_INTERVAL = 60
 MAX_RETRIES = 3
 RETRY_DELAY = 5
 
+# Прокси для обхода блокировок Telegram в РФ
+PROXY_URL = "http://138.68.161.14:3128"  # Публичный прокси сервер
+
 # Стейты для ConversationHandler
-EDITING_TASK, WAITING_FOR_INPUT, WAITING_FOR_FEEDBACK = range(3, 6)
-WAITING_FOR_CURATOR_ID, WAITING_FOR_GROUP_NAME = range(6, 8)
+EDITING_TASK, WAITING_FOR_INPUT, WAITING_FOR_FEEDBACK = range(3, 5)
+WAITING_FOR_CURATOR_ID, WAITING_FOR_GROUP_NAME = range(5, 7)
 
 # Языки
 LANGUAGES = {"ru": "Русский", "en": "English"}
@@ -553,7 +556,7 @@ async def callback_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• ➕ Добавить задание (для кураторов)\n"
         "• 🗑️ Удалить задание (для кураторов)\n"
         "• 🗓️ Данные берутся из Google Таблицы\n"
-        "• 🔔 Напоминания о заданиях\n"
+        "• 🔔 Напоминания о заданиями\n"
         "• 👥 Выбор/изменение группы\n"
         "• 📝 Отправить отзыв разработчику\n"
         "• 🔒 Доступ к изменению только у кураторов" 
@@ -1716,7 +1719,14 @@ def main():
         logger.critical("TELEGRAM_BOT_TOKEN environment variable not set")
         return
     
-    application = Application.builder().token(token).build()
+    # Настройка прокси для обхода блокировок
+    request_kwargs = {
+        'proxy_url': PROXY_URL,
+        'connect_timeout': 20,
+        'read_timeout': 20
+    }
+    
+    application = Application.builder().token(token).request_kwargs(request_kwargs).build()
 
     # Основные обработчики
     application.add_handler(CommandHandler("start", start))
@@ -1798,7 +1808,7 @@ def main():
             first=10
         )
     
-    logger.info("Bot started successfully!")
+    logger.info("Bot started successfully with proxy!")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
